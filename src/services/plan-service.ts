@@ -299,8 +299,8 @@ export class PlanService {
       // Subtract exclusive time proportionally
       _.each(cteScans, (node) => {
         node[NodeProp.EXCLUSIVE_DURATION] =
-          node[NodeProp.EXCLUSIVE_DURATION] -
-          (cteDuration * node[NodeProp.ACTUAL_TOTAL_TIME]) / sumScansDuration
+          Math.max(0, node[NodeProp.EXCLUSIVE_DURATION] -
+          (cteDuration * node[NodeProp.ACTUAL_TOTAL_TIME]) / sumScansDuration)
       })
     })
   }
