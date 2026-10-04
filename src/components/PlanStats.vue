@@ -1,24 +1,26 @@
 <script lang="ts" setup>
+import { faCaretDown, faInfoCircle } from "@fortawesome/free-solid-svg-icons"
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import _ from "lodash"
 import { computed, ref } from "vue"
-import type { ITrigger, Node } from "@/interfaces"
-import { HelpService } from "@/services/help-service"
-import { duration, durationClass } from "@/filters"
 import { directive as vTippy } from "vue-tippy"
-import { NodeProp } from "../enums"
-import { formatNodeProp } from "@/filters"
+
+import BuffersDetail from "@/components/BuffersDetail.vue"
+import IoTable from "@/components/IoTable.vue"
 import JitDetails from "@/components/JitDetails.vue"
-import IoTooltip from "@/components/tooltip/IoTooltip.vue"
+import { durationClass, formatDuration, formatKilobytes } from "@/filters"
+import { formatProp } from "@/filters"
+import type { IPlanning, ISerialization, ITrigger, Node } from "@/interfaces"
+import { getHelpMessage } from "@/services/help-service"
 import { store } from "@/store"
 
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
-import { faCaretDown, faInfoCircle } from "@fortawesome/free-solid-svg-icons"
+import { Property } from "../enums"
 
-const helpService = new HelpService()
-const getHelpMessage = helpService.getHelpMessage
 const showSettings = ref<boolean>(false)
+const showPlanningDetails = ref<boolean>(false)
 const showTriggers = ref<boolean>(false)
 const showJitDetails = ref<boolean>(false)
+const showSerializationDetails = ref<boolean>(false)
 const showIO = ref<boolean>(false)
 
 const planningTimeClass = (percent: number) => {
@@ -53,17 +55,17 @@ const triggersTotalDuration = computed(() => {
 })
 
 function averageIO(node: Node) {
-  const readAverage = node[NodeProp.AVERAGE_SUM_IO_READ_SPEED]
-  const writeAverage = node[NodeProp.AVERAGE_SUM_IO_WRITE_SPEED]
+  const readAverage = node[Property.AVERAGE_SUM_IO_READ_SPEED]
+  const writeAverage = node[Property.AVERAGE_SUM_IO_WRITE_SPEED]
   const r = []
   if (readAverage) {
     r.push(
-      `read=~${formatNodeProp(NodeProp.AVERAGE_SUM_IO_READ_SPEED, readAverage)}`,
+      `read=~${formatProp(Property.AVERAGE_SUM_IO_READ_SPEED, readAverage)}`,
     )
   }
   if (writeAverage) {
     r.push(
-      `write=~${formatNodeProp(NodeProp.AVERAGE_SUM_IO_WRITE_SPEED, writeAverage)}`,
+      `write=~${formatProp(Property.AVERAGE_SUM_IO_WRITE_SPEED, writeAverage)}`,
     )
   }
   return r.join(", ")
@@ -71,12 +73,64 @@ function averageIO(node: Node) {
 
 function hasParallelChildren(node: Node) {
   return node.Plans?.some(function iter(a) {
-    if (a[NodeProp.WORKERS_PLANNED] || a[NodeProp.WORKERS_PLANNED_BY_GATHER]) {
+    if (a[Property.WORKERS_PLANNED] || a[Property.WORKERS_PLANNED_BY_GATHER]) {
       return true
     }
     return Array.isArray(a.Plans) && a.Plans.some(iter)
   })
 }
+
+const hasPlanningDetails = computed(
+  (): boolean => store.stats.planning !== undefined,
+)
+
+const shouldShowPlanningBuffers = computed((): boolean => {
+  if (!store.stats.planning) {
+    return false
+  }
+  const properties: (keyof IPlanning)[] = [
+    Property.SHARED_HIT_BLOCKS,
+    Property.SHARED_READ_BLOCKS,
+    Property.SHARED_DIRTIED_BLOCKS,
+    Property.SHARED_WRITTEN_BLOCKS,
+    Property.TEMP_READ_BLOCKS,
+    Property.TEMP_WRITTEN_BLOCKS,
+    Property.LOCAL_HIT_BLOCKS,
+    Property.LOCAL_READ_BLOCKS,
+    Property.LOCAL_DIRTIED_BLOCKS,
+    Property.LOCAL_WRITTEN_BLOCKS,
+  ]
+  const values = _.map(properties, (property) => {
+    const value = store.stats.planning?.[property]
+    return _.isNaN(value) ? 0 : value
+  })
+  const sum = _.sum(values)
+  return sum > 0
+})
+
+const shouldShowSerializationBuffers = computed((): boolean => {
+  if (!store.stats.serialization) {
+    return false
+  }
+  const properties: (keyof ISerialization)[] = [
+    Property.SHARED_HIT_BLOCKS,
+    Property.SHARED_READ_BLOCKS,
+    Property.SHARED_DIRTIED_BLOCKS,
+    Property.SHARED_WRITTEN_BLOCKS,
+    Property.TEMP_READ_BLOCKS,
+    Property.TEMP_WRITTEN_BLOCKS,
+    Property.LOCAL_HIT_BLOCKS,
+    Property.LOCAL_READ_BLOCKS,
+    Property.LOCAL_DIRTIED_BLOCKS,
+    Property.LOCAL_WRITTEN_BLOCKS,
+  ]
+  const values = _.map(properties, (property) => {
+    const value = store.stats.serialization?.[property]
+    return _.isNaN(value) ? 0 : value
+  })
+  const sum = _.sum(values)
+  return sum > 0
+})
 </script>
 
 <template>
@@ -88,7 +142,7 @@ function hasParallelChildren(node: Node) {
       Execution time:
       <template v-if="!store.stats.executionTime">
         <span class="text-body-tertiary">
-          N/A
+          {{ formatDuration(store.stats.executionTime) }}
           <FontAwesomeIcon
             :icon="faInfoCircle"
             class="cursor-help"
@@ -99,15 +153,15 @@ function hasParallelChildren(node: Node) {
       <template v-else>
         <span
           class="stat-value"
-          v-html="duration(store.stats.executionTime)"
+          v-html="formatDuration(store.stats.executionTime)"
         ></span>
       </template>
     </div>
-    <div class="d-inline-block border-start px-2">
-      Planning time:
+    <div class="d-inline-block border-start px-2 position-relative">
+      Planning:
       <template v-if="!store.stats.planningTime">
         <span class="text-body-tertiary">
-          N/A
+          {{ formatDuration(store.stats.planningTime) }}
           <FontAwesomeIcon
             :icon="faInfoCircle"
             class="cursor-help"
@@ -126,10 +180,115 @@ function hasParallelChildren(node: Node) {
                   100,
               )
             "
-            v-html="duration(store.stats.planningTime)"
+            v-html="formatDuration(store.stats.planningTime)"
           ></span>
         </span>
       </template>
+      <button
+        @click.prevent="showPlanningDetails = !showPlanningDetails"
+        v-if="hasPlanningDetails"
+        class="bg-transparent border-0 p-0 m-0 ps-1"
+      >
+        <FontAwesomeIcon
+          :icon="faCaretDown"
+          class="text-body-tertiary"
+        ></FontAwesomeIcon>
+      </button>
+      <div
+        class="stat-dropdown-container start-0"
+        v-if="showPlanningDetails && hasPlanningDetails"
+      >
+        <button
+          class="btn btn-xs btn-close float-end"
+          v-on:click="showPlanningDetails = false"
+        ></button>
+        <h3>Planning</h3>
+        <div>
+          <b>Time:</b>
+          <span>{{ formatDuration(store.stats.planningTime) }}</span>
+        </div>
+        <template v-if="store.stats.planning">
+          <div v-if="shouldShowPlanningBuffers">
+            <BuffersDetail :object="store.stats.planning" />
+          </div>
+          <IoTable :object="store.stats.planning" class="mb-0" />
+        </template>
+        <div
+          v-if="
+            store.stats.planning?.[Property.MEMORY_USED] ||
+            store.stats.planning?.[Property.MEMORY_ALLOCATED]
+          "
+          class="mt-2"
+        >
+          <b>Memory:</b>
+          <ul class="mb-0">
+            <li>
+              used:
+              {{
+                formatKilobytes(store.stats.planning?.[Property.MEMORY_USED])
+              }}
+            </li>
+            <li>
+              allocated:
+              {{
+                formatKilobytes(
+                  store.stats.planning?.[Property.MEMORY_ALLOCATED],
+                )
+              }}
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div
+      class="d-inline-block border-start px-2 position-relative"
+      v-if="store.stats.serialization"
+    >
+      Serialization:
+      <span class="stat-value">
+        <span
+          :class="
+            'mb-0 p-0 px-1 alert ' +
+            planningTimeClass(
+              (store.stats.serialization.Time /
+                (store.stats.executionTime as number)) *
+                100,
+            )
+          "
+          v-html="formatDuration(store.stats.serialization.Time)"
+        ></span>
+      </span>
+      <button
+        @click.prevent="showSerializationDetails = !showSerializationDetails"
+        class="bg-transparent border-0 p-0 m-0 ps-1"
+      >
+        <FontAwesomeIcon
+          :icon="faCaretDown"
+          class="text-body-tertiary"
+        ></FontAwesomeIcon>
+      </button>
+      <div class="stat-dropdown-container" v-if="showSerializationDetails">
+        <button
+          class="btn btn-xs btn-close float-end"
+          v-on:click="showSerializationDetails = false"
+        ></button>
+        <h3>Serialization</h3>
+        <div>
+          <b>Time:</b>
+          <span>{{ formatDuration(store.stats.serialization.Time) }}</span>
+        </div>
+        <div>
+          <b>Output Volume: </b>
+          <span>
+            {{
+              formatKilobytes(store.stats.serialization["Output Volume"])
+            }}</span
+          >
+        </div>
+        <div v-if="shouldShowSerializationBuffers">
+          <BuffersDetail :object="store.stats.serialization" />
+        </div>
+      </div>
     </div>
     <div
       class="d-inline-block border-start px-2 position-relative"
@@ -144,7 +303,7 @@ function hasParallelChildren(node: Node) {
               (store.stats.jitTime / store.stats.executionTime) * 100,
             )
           "
-          v-html="duration(store.stats.jitTime)"
+          v-html="formatDuration(store.stats.jitTime)"
         ></span>
         <button
           @click.prevent="showJitDetails = !showJitDetails"
@@ -155,7 +314,7 @@ function hasParallelChildren(node: Node) {
             class="text-body-tertiary"
           ></FontAwesomeIcon>
         </button>
-        <div class="stat-dropdown-container text-start" v-if="showJitDetails">
+        <div class="stat-dropdown-container" v-if="showJitDetails">
           <div>
             <JitDetails
               :jit="store.plan?.content.JIT"
@@ -175,7 +334,7 @@ function hasParallelChildren(node: Node) {
           :class="
             'mb-0 p-0 px-1 alert ' + durationClass(totalTriggerDurationPercent)
           "
-          v-html="duration(triggersTotalDuration)"
+          v-html="formatDuration(triggersTotalDuration)"
         ></span>
       </span>
       <button
@@ -187,7 +346,7 @@ function hasParallelChildren(node: Node) {
           class="text-body-tertiary"
         ></FontAwesomeIcon>
       </button>
-      <div class="stat-dropdown-container text-start" v-if="showTriggers">
+      <div class="stat-dropdown-container" v-if="showTriggers">
         <button
           class="btn btn-xs btn-close float-end"
           v-on:click="showTriggers = false"
@@ -204,7 +363,7 @@ function hasParallelChildren(node: Node) {
                 'p-0 px-1 alert ' +
                 durationClass(triggerDurationPercent(trigger))
               "
-              v-html="duration(trigger.Time)"
+              v-html="formatDuration(trigger.Time)"
             ></span>
             | {{ triggerDurationPercent(trigger)
             }}<span class="text-body-tertiary">%</span>
@@ -241,7 +400,7 @@ function hasParallelChildren(node: Node) {
           class="text-body-tertiary"
         ></FontAwesomeIcon>
       </button>
-      <div class="stat-dropdown-container text-start" v-if="showSettings">
+      <div class="stat-dropdown-container" v-if="showSettings">
         <button
           class="btn btn-xs btn-close float-end"
           v-on:click="showSettings = false"
@@ -285,12 +444,12 @@ function hasParallelChildren(node: Node) {
           class="text-body-tertiary"
         ></FontAwesomeIcon>
       </button>
-      <div class="stat-dropdown-container text-start" v-if="showIO">
+      <div class="stat-dropdown-container" v-if="showIO">
         <button
           class="btn btn-xs btn-close float-end"
           v-on:click="showIO = false"
         ></button>
-        <IoTooltip :node="store.plan?.content.Plan" class="mb-0" />
+        <IoTable :object="store.plan?.content.Plan" class="mb-0" />
       </div>
     </div>
   </div>

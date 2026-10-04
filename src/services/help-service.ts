@@ -1,25 +1,17 @@
 import _ from "lodash"
+
+import { Property } from "@/enums"
 import type { IPlan, Node } from "@/interfaces"
-import { NodeProp } from "@/enums"
-import { nodePropTypes, PropType } from "@/enums"
 
-export class HelpService {
-  public nodeId = 0
-
-  public getNodeTypeDescription(nodeType: string) {
-    return NODE_DESCRIPTIONS[nodeType.toUpperCase()]
-  }
-
-  public getHelpMessage(helpMessage: string) {
-    return HELP_MESSAGES[helpMessage.toUpperCase()]
-  }
+export function getNodeTypeDescription(nodeType: string): string | undefined {
+  return NODE_DESCRIPTIONS[nodeType.toUpperCase()]
 }
 
-interface INodeDescription {
-  [key: string]: string
+export function getHelpMessage(helpMessage: string): string | undefined {
+  return HELP_MESSAGES[helpMessage.toUpperCase()]
 }
 
-export const NODE_DESCRIPTIONS: INodeDescription = {
+export const NODE_DESCRIPTIONS: Record<string, string> = {
   LIMIT: "returns a specified number of rows from a record set.",
   SORT: "sorts a record set based on the specified sort key.",
   "NESTED LOOP": `merges two record sets by looping through every record in the first set and
@@ -51,11 +43,7 @@ export const NODE_DESCRIPTIONS: INodeDescription = {
   "GATHER MERGE": `reads the results of the parallel workers, preserving any ordering.`,
 }
 
-interface IHelpMessage {
-  [key: string]: string
-}
-
-export const HELP_MESSAGES: IHelpMessage = {
+export const HELP_MESSAGES: Record<string, string> = {
   "MISSING EXECUTION TIME": `Execution time (or Total runtime) not available for this plan. Make sure you
     use EXPLAIN ANALYZE.`,
   "MISSING PLANNING TIME": "Planning time not available for this plan.",
@@ -65,6 +53,8 @@ Consider modifying max_parallel_workers or max_parallel_workers_per_gather.`,
   "FUZZY NEEDS VERBOSE": `Information may not be accurate. Use EXPLAIN VERBOSE mode.`,
   "HINT TRACK_IO_TIMING": `HINT: activate <em><b>track_io_timing</b></em> to have details on time spent outside the PG cache.`,
   "IO TIMINGS PARALLEL": "Distributed among parallel workers",
+  "MULTIPLE HASH BATCHES":
+    "Several batches were required to process the hash buckets with the available memory. Spilling data to temporary disk, yet generating some operation on disk (I/O).<br/> <b>Hint</b>: consider increasing <code>work_mem</code> or decreasing <code>hash_mem_multiplier</code> so that only one batch is used to possibly improve performance.",
 }
 
 interface EaseInOutQuadOptions {
@@ -286,7 +276,7 @@ export function findNodeBySubplanName(
   let o: Node | undefined = undefined
   if (plan.ctes) {
     _.each(plan.ctes, (cte) => {
-      if (cte[NodeProp.SUBPLAN_NAME] == "CTE " + subplanName) {
+      if (cte[Property.SUBPLAN_NAME] == "CTE " + subplanName) {
         o = cte
         return false
       }
@@ -298,120 +288,125 @@ export function findNodeBySubplanName(
 // Returns the list of properties that have already been displayed either in
 // the main panel or in other detailed tabs.
 const notMiscProperties: string[] = [
-  NodeProp.NODE_TYPE,
-  NodeProp.CTE_NAME,
-  NodeProp.EXCLUSIVE_DURATION,
-  NodeProp.EXCLUSIVE_COST,
-  NodeProp.TOTAL_COST,
-  NodeProp.PLAN_ROWS,
-  NodeProp.ACTUAL_ROWS,
-  NodeProp.ACTUAL_LOOPS,
-  NodeProp.OUTPUT,
-  NodeProp.WORKERS,
-  NodeProp.WORKERS_PLANNED,
-  NodeProp.WORKERS_LAUNCHED,
-  NodeProp.READ_BLOCKS,
-  NodeProp.WRITTEN_BLOCKS,
-  NodeProp.EXCLUSIVE_SHARED_HIT_BLOCKS,
-  NodeProp.EXCLUSIVE_SHARED_READ_BLOCKS,
-  NodeProp.EXCLUSIVE_SHARED_DIRTIED_BLOCKS,
-  NodeProp.EXCLUSIVE_SHARED_WRITTEN_BLOCKS,
-  NodeProp.EXCLUSIVE_TEMP_READ_BLOCKS,
-  NodeProp.EXCLUSIVE_TEMP_WRITTEN_BLOCKS,
-  NodeProp.EXCLUSIVE_LOCAL_HIT_BLOCKS,
-  NodeProp.EXCLUSIVE_LOCAL_READ_BLOCKS,
-  NodeProp.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS,
-  NodeProp.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS,
-  NodeProp.EXCLUSIVE_READ_BLOCKS,
-  NodeProp.EXCLUSIVE_WRITTEN_BLOCKS,
-  NodeProp.SHARED_HIT_BLOCKS,
-  NodeProp.SHARED_READ_BLOCKS,
-  NodeProp.SHARED_DIRTIED_BLOCKS,
-  NodeProp.SHARED_WRITTEN_BLOCKS,
-  NodeProp.TEMP_READ_BLOCKS,
-  NodeProp.TEMP_WRITTEN_BLOCKS,
-  NodeProp.LOCAL_HIT_BLOCKS,
-  NodeProp.LOCAL_READ_BLOCKS,
-  NodeProp.LOCAL_DIRTIED_BLOCKS,
-  NodeProp.LOCAL_WRITTEN_BLOCKS,
-  NodeProp.PLANNER_ESTIMATE_FACTOR,
-  NodeProp.PLANNER_ESTIMATE_DIRECTION,
-  NodeProp.SUBPLAN_NAME,
-  NodeProp.GROUP_KEY,
-  NodeProp.HASH_CONDITION,
-  NodeProp.JOIN_TYPE,
-  NodeProp.INDEX_NAME,
-  NodeProp.HASH_CONDITION,
-  NodeProp.EXCLUSIVE_IO_READ_TIME,
-  NodeProp.EXCLUSIVE_IO_WRITE_TIME,
-  NodeProp.EXCLUSIVE_SHARED_IO_READ_TIME,
-  NodeProp.EXCLUSIVE_SHARED_IO_WRITE_TIME,
-  NodeProp.EXCLUSIVE_LOCAL_IO_READ_TIME,
-  NodeProp.EXCLUSIVE_LOCAL_IO_WRITE_TIME,
-  NodeProp.EXCLUSIVE_TEMP_IO_READ_TIME,
-  NodeProp.EXCLUSIVE_TEMP_IO_WRITE_TIME,
-  NodeProp.EXCLUSIVE_AVERAGE_IO_READ_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_IO_WRITE_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_SHARED_IO_READ_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_SHARED_IO_WRITE_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_LOCAL_IO_READ_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_LOCAL_IO_WRITE_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_TEMP_IO_READ_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_TEMP_IO_WRITE_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_IO_READ_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_IO_WRITE_SPEED,
-  NodeProp.EXCLUSIVE_SUM_IO_READ_TIME,
-  NodeProp.EXCLUSIVE_SUM_IO_WRITE_TIME,
-  NodeProp.EXCLUSIVE_AVERAGE_SUM_IO_READ_SPEED,
-  NodeProp.EXCLUSIVE_AVERAGE_SUM_IO_WRITE_SPEED,
-  NodeProp.AVERAGE_IO_READ_SPEED,
-  NodeProp.AVERAGE_IO_WRITE_SPEED,
-  NodeProp.AVERAGE_SHARED_IO_READ_SPEED,
-  NodeProp.AVERAGE_SHARED_IO_WRITE_SPEED,
-  NodeProp.AVERAGE_LOCAL_IO_READ_SPEED,
-  NodeProp.AVERAGE_LOCAL_IO_WRITE_SPEED,
-  NodeProp.AVERAGE_TEMP_IO_READ_SPEED,
-  NodeProp.AVERAGE_TEMP_IO_WRITE_SPEED,
-  NodeProp.IO_READ_TIME,
-  NodeProp.IO_WRITE_TIME,
-  NodeProp.SHARED_IO_READ_TIME,
-  NodeProp.SHARED_IO_WRITE_TIME,
-  NodeProp.LOCAL_IO_READ_TIME,
-  NodeProp.LOCAL_IO_WRITE_TIME,
-  NodeProp.TEMP_IO_READ_TIME,
-  NodeProp.TEMP_IO_WRITE_TIME,
-  NodeProp.SUM_IO_READ_TIME,
-  NodeProp.SUM_IO_WRITE_TIME,
-  NodeProp.AVERAGE_SUM_IO_READ_SPEED,
-  NodeProp.AVERAGE_SUM_IO_WRITE_SPEED,
-  NodeProp.HEAP_FETCHES,
-  NodeProp.WAL_RECORDS,
-  NodeProp.WAL_BYTES,
-  NodeProp.WAL_FPI,
-  NodeProp.NODE_ID,
-  NodeProp.ROWS_REMOVED_BY_FILTER,
-  NodeProp.ROWS_REMOVED_BY_JOIN_FILTER,
-  NodeProp.ROWS_REMOVED_BY_INDEX_RECHECK,
-  NodeProp.ACTUAL_ROWS_REVISED,
-  NodeProp.PLAN_ROWS_REVISED,
-  NodeProp.ROWS_REMOVED_BY_FILTER_REVISED,
-  NodeProp.ROWS_REMOVED_BY_JOIN_FILTER_REVISED,
-  NodeProp.ROWS_REMOVED_BY_INDEX_RECHECK_REVISED,
+  Property.NODE_TYPE,
+  Property.CTE_NAME,
+  Property.EXCLUSIVE_DURATION,
+  Property.EXCLUSIVE_COST,
+  Property.TOTAL_COST,
+  Property.PLAN_ROWS,
+  Property.ACTUAL_ROWS,
+  Property.ACTUAL_LOOPS,
+  Property.OUTPUT,
+  Property.WORKERS,
+  Property.WORKERS_PLANNED,
+  Property.WORKERS_LAUNCHED,
+  Property.WORKERS_PLANNED_BY_GATHER,
+  Property.WORKERS_LAUNCHED_BY_GATHER,
+  Property.READ_BLOCKS,
+  Property.WRITTEN_BLOCKS,
+  Property.EXCLUSIVE_SHARED_HIT_BLOCKS,
+  Property.EXCLUSIVE_SHARED_READ_BLOCKS,
+  Property.EXCLUSIVE_SHARED_DIRTIED_BLOCKS,
+  Property.EXCLUSIVE_SHARED_WRITTEN_BLOCKS,
+  Property.EXCLUSIVE_TEMP_READ_BLOCKS,
+  Property.EXCLUSIVE_TEMP_WRITTEN_BLOCKS,
+  Property.EXCLUSIVE_LOCAL_HIT_BLOCKS,
+  Property.EXCLUSIVE_LOCAL_READ_BLOCKS,
+  Property.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS,
+  Property.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS,
+  Property.EXCLUSIVE_READ_BLOCKS,
+  Property.EXCLUSIVE_WRITTEN_BLOCKS,
+  Property.SHARED_HIT_BLOCKS,
+  Property.SHARED_READ_BLOCKS,
+  Property.SHARED_DIRTIED_BLOCKS,
+  Property.SHARED_WRITTEN_BLOCKS,
+  Property.TEMP_READ_BLOCKS,
+  Property.TEMP_WRITTEN_BLOCKS,
+  Property.LOCAL_HIT_BLOCKS,
+  Property.LOCAL_READ_BLOCKS,
+  Property.LOCAL_DIRTIED_BLOCKS,
+  Property.LOCAL_WRITTEN_BLOCKS,
+  Property.PLANNER_ESTIMATE_FACTOR,
+  Property.PLANNER_ESTIMATE_DIRECTION,
+  Property.SUBPLAN_NAME,
+  Property.GROUP_KEY,
+  Property.HASH_CONDITION,
+  Property.JOIN_TYPE,
+  Property.INDEX_NAME,
+  Property.HASH_CONDITION,
+  Property.EXCLUSIVE_IO_READ_TIME,
+  Property.EXCLUSIVE_IO_WRITE_TIME,
+  Property.EXCLUSIVE_SHARED_IO_READ_TIME,
+  Property.EXCLUSIVE_SHARED_IO_WRITE_TIME,
+  Property.EXCLUSIVE_LOCAL_IO_READ_TIME,
+  Property.EXCLUSIVE_LOCAL_IO_WRITE_TIME,
+  Property.EXCLUSIVE_TEMP_IO_READ_TIME,
+  Property.EXCLUSIVE_TEMP_IO_WRITE_TIME,
+  Property.EXCLUSIVE_AVERAGE_IO_READ_SPEED,
+  Property.EXCLUSIVE_AVERAGE_IO_WRITE_SPEED,
+  Property.EXCLUSIVE_AVERAGE_SHARED_IO_READ_SPEED,
+  Property.EXCLUSIVE_AVERAGE_SHARED_IO_WRITE_SPEED,
+  Property.EXCLUSIVE_AVERAGE_LOCAL_IO_READ_SPEED,
+  Property.EXCLUSIVE_AVERAGE_LOCAL_IO_WRITE_SPEED,
+  Property.EXCLUSIVE_AVERAGE_TEMP_IO_READ_SPEED,
+  Property.EXCLUSIVE_AVERAGE_TEMP_IO_WRITE_SPEED,
+  Property.EXCLUSIVE_AVERAGE_IO_READ_SPEED,
+  Property.EXCLUSIVE_AVERAGE_IO_WRITE_SPEED,
+  Property.EXCLUSIVE_SUM_IO_READ_TIME,
+  Property.EXCLUSIVE_SUM_IO_WRITE_TIME,
+  Property.EXCLUSIVE_AVERAGE_SUM_IO_READ_SPEED,
+  Property.EXCLUSIVE_AVERAGE_SUM_IO_WRITE_SPEED,
+  Property.AVERAGE_IO_READ_SPEED,
+  Property.AVERAGE_IO_WRITE_SPEED,
+  Property.AVERAGE_SHARED_IO_READ_SPEED,
+  Property.AVERAGE_SHARED_IO_WRITE_SPEED,
+  Property.AVERAGE_LOCAL_IO_READ_SPEED,
+  Property.AVERAGE_LOCAL_IO_WRITE_SPEED,
+  Property.AVERAGE_TEMP_IO_READ_SPEED,
+  Property.AVERAGE_TEMP_IO_WRITE_SPEED,
+  Property.IO_READ_TIME,
+  Property.IO_WRITE_TIME,
+  Property.SHARED_IO_READ_TIME,
+  Property.SHARED_IO_WRITE_TIME,
+  Property.LOCAL_IO_READ_TIME,
+  Property.LOCAL_IO_WRITE_TIME,
+  Property.TEMP_IO_READ_TIME,
+  Property.TEMP_IO_WRITE_TIME,
+  Property.SUM_IO_READ_TIME,
+  Property.SUM_IO_WRITE_TIME,
+  Property.AVERAGE_SUM_IO_READ_SPEED,
+  Property.AVERAGE_SUM_IO_WRITE_SPEED,
+  Property.HEAP_FETCHES,
+  Property.WAL_RECORDS,
+  Property.WAL_BYTES,
+  Property.WAL_FPI,
+  Property.NODE_ID,
+  Property.ROWS_REMOVED_BY_FILTER,
+  Property.ROWS_REMOVED_BY_JOIN_FILTER,
+  Property.ROWS_REMOVED_BY_INDEX_RECHECK,
+  Property.ACTUAL_ROWS_REVISED,
+  Property.PLAN_ROWS_REVISED,
+  Property.ROWS_REMOVED_BY_FILTER_REVISED,
+  Property.ROWS_REMOVED_BY_JOIN_FILTER_REVISED,
+  Property.ROWS_REMOVED_BY_INDEX_RECHECK_REVISED,
   "size", // Manually added to use FlexTree
-  NodeProp.RELATION_NAME,
-  NodeProp.ALIAS,
-  NodeProp.FUNCTION_NAME,
-  NodeProp.STRATEGY,
-  NodeProp.PARTIAL_MODE,
-  NodeProp.SCAN_DIRECTION,
-  NodeProp.ACTUAL_ROWS_FRACTIONAL,
+  Property.RELATION_NAME,
+  Property.ALIAS,
+  Property.FUNCTION_NAME,
+  Property.STRATEGY,
+  Property.PARTIAL_MODE,
+  Property.SCAN_DIRECTION,
+  Property.ACTUAL_ROWS_FRACTIONAL,
+  Property.DISABLED,
+  Property.WORKER_NUMBER,
+  Property.ASYNC_CAPABLE,
 ]
 
 export function shouldShowProp(key: string, value: unknown): boolean {
   return (
     (!!value ||
-      nodePropTypes[key] === PropType.increment ||
-      key === NodeProp.ACTUAL_ROWS) &&
+      key === Property.WORKER_NUMBER ||
+      key === Property.ACTUAL_ROWS) &&
     notMiscProperties.indexOf(key) === -1
   )
 }

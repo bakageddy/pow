@@ -1,21 +1,27 @@
 // Composable for PlanNode and PlanNodeDetail components
 import _ from "lodash"
 import { computed, onBeforeMount, ref, watch } from "vue"
-import type { Node, Worker, ViewOptions } from "@/interfaces"
+
 import {
   BufferLocation,
-  NodeProp,
   EstimateDirection,
   HighlightType,
+  Property,
 } from "@/enums"
-import { blocks, cost, duration, factor, formatNodeProp, rows } from "@/filters"
+import {
+  formatBlocks,
+  formatCost,
+  formatDuration,
+  formatFactor,
+  formatProp,
+  formatRows,
+} from "@/filters"
+import type { Node, ViewOptions, Worker } from "@/interfaces"
+import { REVERSE_STRATEGY_MAP } from "@/interfaces"
 import { numberToColorHsl } from "@/services/color-service"
 import { store } from "@/store"
 
-export default function useNode(
-  node: Node,
-  viewOptions: ViewOptions,
-) {
+export default function useNode(node: Node, viewOptions: ViewOptions) {
   const executionTimePercent = ref<number>(NaN)
   // UI flags
   // calculated properties
@@ -34,8 +40,8 @@ export default function useNode(
     calculateCost()
     calculateRowsRemoved()
     plannerRowEstimateDirection.value =
-      node[NodeProp.PLANNER_ESTIMATE_DIRECTION]
-    plannerRowEstimateValue.value = node[NodeProp.PLANNER_ESTIMATE_FACTOR]
+      node[Property.PLANNER_ESTIMATE_DIRECTION]
+    plannerRowEstimateValue.value = node[Property.PLANNER_ESTIMATE_FACTOR]
   })
 
   watch(() => viewOptions.highlightType, calculateBar)
@@ -44,38 +50,31 @@ export default function useNode(
     let value: number | undefined
     switch (viewOptions.highlightType) {
       case HighlightType.DURATION:
-        value = node[NodeProp.EXCLUSIVE_DURATION]
+        value = node[Property.EXCLUSIVE_DURATION]
         if (value === undefined) {
           highlightValue.value = null
           break
         }
-        barWidth.value = Math.round(
-          value / store.stats.maxDuration * 100
-        )
-        highlightValue.value = duration(value)
+        barWidth.value = Math.round((value / store.stats.maxDuration) * 100)
+        highlightValue.value = formatDuration(value)
         break
       case HighlightType.ROWS:
-        value = node[NodeProp.ACTUAL_ROWS_REVISED]
+        value = node[Property.ACTUAL_ROWS_REVISED]
         if (value === undefined) {
           highlightValue.value = null
           break
         }
-        barWidth.value =
-          Math.round(
-            value / store.stats.maxRows * 100
-          ) || 0
-        highlightValue.value = rows(value)
+        barWidth.value = Math.round((value / store.stats.maxRows) * 100) || 0
+        highlightValue.value = formatRows(value)
         break
       case HighlightType.COST:
-        value = node[NodeProp.EXCLUSIVE_COST]
+        value = node[Property.EXCLUSIVE_COST]
         if (value === undefined) {
           highlightValue.value = null
           break
         }
-        barWidth.value = Math.round(
-          value / store.stats.maxCost * 100
-        )
-        highlightValue.value = cost(value)
+        barWidth.value = Math.round((value / store.stats.maxCost) * 100)
+        highlightValue.value = formatCost(value)
         break
     }
   }
@@ -86,18 +85,40 @@ export default function useNode(
 
   const nodeName = computed((): string => {
     let nodeName = isParallelAware.value ? "Parallel " : ""
-    nodeName += node[NodeProp.PARTIAL_MODE]
-      ? node[NodeProp.PARTIAL_MODE] + " "
-      : ""
-    nodeName += node[NodeProp.NODE_TYPE]
-    if (
-      node[NodeProp.SCAN_DIRECTION] &&
-      node[NodeProp.SCAN_DIRECTION] !== "Forward"
-    ) {
-      nodeName += " " + node[NodeProp.SCAN_DIRECTION]
+    nodeName += node[Property.ASYNC_CAPABLE] ? "Async " : ""
+
+    nodeName += node[Property.NODE_TYPE]
+
+    if (node[Property.STRATEGY]) {
+      nodeName =
+        (REVERSE_STRATEGY_MAP[
+          node[Property.STRATEGY] as keyof typeof REVERSE_STRATEGY_MAP
+        ] || "") + nodeName
     }
-    if (node[NodeProp.JOIN_TYPE]) {
-      nodeName = nodeName.replace("Join", `${node[NodeProp.JOIN_TYPE]} Join`);
+
+    if (
+      node[Property.PARTIAL_MODE] &&
+      node[Property.PARTIAL_MODE] != "Simple"
+    ) {
+      nodeName = `${node[Property.PARTIAL_MODE]} ${nodeName}`
+    }
+    if (
+      node[Property.SCAN_DIRECTION] &&
+      node[Property.SCAN_DIRECTION] !== "Forward"
+    ) {
+      nodeName += " " + node[Property.SCAN_DIRECTION]
+    }
+    if (node[Property.JOIN_TYPE] && node[Property.JOIN_TYPE] != "Inner") {
+      // Add the join type to the node name before the "Join" suffix
+      // Note: in the case of a Nested Loop, "Join" isn't part of the node type
+      // (hence the regexp)
+      nodeName = nodeName.replace(
+        /(\s+Join)*$/,
+        ` ${node[Property.JOIN_TYPE]} Join`,
+      )
+    }
+    if (node[Property.ASYNC_CAPABLE]) {
+      nodeName = `Async ${nodeName}`
     }
     return nodeName
   })
@@ -106,33 +127,33 @@ export default function useNode(
     // use the first node total time if plan execution time is not available
     const executionTime =
       store.stats.executionTime ||
-      (store.plan?.content?.Plan?.[NodeProp.ACTUAL_TOTAL_TIME] as number)
-    const duration = node[NodeProp.EXCLUSIVE_DURATION] as number
+      (store.plan?.content?.Plan?.[Property.ACTUAL_TOTAL_TIME] as number)
+    const duration = node[Property.EXCLUSIVE_DURATION] as number
     executionTimePercent.value = _.round((duration / executionTime) * 100)
   }
 
   function calculateCost() {
     const maxTotalCost = store.plan?.content.maxTotalCost as number
-    const cost = node[NodeProp.EXCLUSIVE_COST] as number
+    const cost = node[Property.EXCLUSIVE_COST] as number
     costPercent.value = _.round((cost / maxTotalCost) * 100)
   }
 
-  type NodePropStrings = keyof typeof NodeProp
+  type NodePropStrings = keyof typeof Property
   const nodeKey = Object.keys(node).find(
     (key) =>
-      key === NodeProp.ROWS_REMOVED_BY_FILTER_REVISED ||
-      key === NodeProp.ROWS_REMOVED_BY_JOIN_FILTER_REVISED ||
-      key === NodeProp.ROWS_REMOVED_BY_INDEX_RECHECK_REVISED,
+      key === Property.ROWS_REMOVED_BY_FILTER_REVISED ||
+      key === Property.ROWS_REMOVED_BY_JOIN_FILTER_REVISED ||
+      key === Property.ROWS_REMOVED_BY_INDEX_RECHECK_REVISED,
   )
-  const rowsRemovedProp: NodePropStrings = Object.keys(NodeProp).find(
-    (prop) => NodeProp[prop as NodePropStrings] === nodeKey,
+  const rowsRemovedProp: NodePropStrings = Object.keys(Property).find(
+    (prop) => Property[prop as NodePropStrings] === nodeKey,
   ) as NodePropStrings
 
   function calculateRowsRemoved() {
     if (rowsRemovedProp) {
-      const removed = node[NodeProp[rowsRemovedProp]] as number
+      const removed = node[Property[rowsRemovedProp]] as number
       rowsRemoved.value = removed
-      const actual = node[NodeProp.ACTUAL_ROWS_REVISED]
+      const actual = node[Property.ACTUAL_ROWS_REVISED]
       rowsRemovedPercent.value = _.floor((removed / (removed + actual)) * 100)
       if (rowsRemovedPercent.value === 100) {
         rowsRemovedPercentString.value = ">99"
@@ -162,7 +183,7 @@ export default function useNode(
 
   const estimationClass = computed(() => {
     let c
-    const i = node[NodeProp.PLANNER_ESTIMATE_FACTOR] as number
+    const i = node[Property.PLANNER_ESTIMATE_FACTOR] as number
     if (i > 1000) {
       c = 4
     } else if (i > 100) {
@@ -192,6 +213,18 @@ export default function useNode(
     return false
   })
 
+  const bucketsBatchesClass = computed(() => {
+    let c
+    const i = node[Property.HASH_BATCHES] as number
+    if (i > 1) {
+      c = 3
+    }
+    if (c) {
+      return "c-" + c
+    }
+    return false
+  })
+
   const rowsRemovedClass = computed(() => {
     let c
     const i = rowsRemovedPercent.value
@@ -209,10 +242,10 @@ export default function useNode(
   const heapFetchesClass = computed(() => {
     let c
     const i =
-      ((node[NodeProp.HEAP_FETCHES] as number) /
-        ((node[NodeProp.ACTUAL_ROWS] as number) +
-          ((node[NodeProp.ROWS_REMOVED_BY_FILTER] as number) || 0) +
-          ((node[NodeProp.ROWS_REMOVED_BY_JOIN_FILTER] as number) || 0))) *
+      ((node[Property.HEAP_FETCHES] as number) /
+        ((node[Property.ACTUAL_ROWS] as number) +
+          ((node[Property.ROWS_REMOVED_BY_FILTER] as number) || 0) +
+          ((node[Property.ROWS_REMOVED_BY_JOIN_FILTER] as number) || 0))) *
       100
     if (i > 90) {
       c = 4
@@ -233,57 +266,59 @@ export default function useNode(
 
   const filterDetailTooltip = computed((): string => {
     return `Filter used:<br><pre class="mb-0" style="white-space: pre-wrap;"><code>${
-      node[NodeProp.FILTER]
+      node[Property.FILTER]
     }</code></pre>`
   })
 
   const indexRecheckTooltip = computed((): string => {
     return `Recheck condition:<br><pre class="mb-0" style="white-space: pre-wrap;"><code>${
-      node[NodeProp.RECHECK_COND]
+      node[Property.RECHECK_COND]
     }</code></pre>`
   })
 
+  const approximativeTooltip = `<b>Value may not be accurate.</b><br />It couldn't be computed precisely because there are several loops and rows count is an average value.`
+
   const isNeverExecuted = computed((): boolean => {
-    return !!store.stats.executionTime && !node[NodeProp.ACTUAL_LOOPS]
+    return !!store.stats.executionTime && !node[Property.ACTUAL_LOOPS]
   })
 
   const isParallelAware = computed((): boolean => {
-    return node[NodeProp.PARALLEL_AWARE]
+    return node[Property.PARALLEL_AWARE]
   })
 
   const workersLaunchedCount = computed((): number => {
     console.warn("Make sure it works for workers that are not array")
-    if (node[NodeProp.WORKERS_LAUNCHED]) {
-      return node[NodeProp.WORKERS_LAUNCHED] as number
+    if (node[Property.WORKERS_LAUNCHED]) {
+      return node[Property.WORKERS_LAUNCHED] as number
     }
-    if (node[NodeProp.WORKERS_LAUNCHED_BY_GATHER]) {
-      return node[NodeProp.WORKERS_LAUNCHED_BY_GATHER] as number
+    if (node[Property.WORKERS_LAUNCHED_BY_GATHER]) {
+      return node[Property.WORKERS_LAUNCHED_BY_GATHER] as number
     }
-    const workers = node[NodeProp.WORKERS] as Worker[]
+    const workers = node[Property.WORKERS] as Worker[]
     return workers ? workers.length : NaN
   })
 
   const workersPlannedCount = computed((): number => {
     return (
-      (node[NodeProp.WORKERS_LAUNCHED] as number) ||
-      (node[NodeProp.WORKERS_PLANNED_BY_GATHER] as number)
+      (node[Property.WORKERS_LAUNCHED] as number) ||
+      (node[Property.WORKERS_PLANNED_BY_GATHER] as number)
     )
   })
 
   const workersPlannedCountReversed = computed((): number[] => {
-    const workersPlanned = node[NodeProp.WORKERS_PLANNED_BY_GATHER]
+    const workersPlanned = node[Property.WORKERS_PLANNED_BY_GATHER]
     return [...Array(workersPlanned).keys()].slice().reverse()
   })
 
   const estimateFactorPercent = computed((): number => {
-    switch (node[NodeProp.PLANNER_ESTIMATE_FACTOR]) {
+    switch (node[Property.PLANNER_ESTIMATE_FACTOR]) {
       case Infinity:
         return 100
       case 1:
         return 0
       default:
         return (
-          ((node[NodeProp.PLANNER_ESTIMATE_FACTOR] || 0) /
+          ((node[Property.PLANNER_ESTIMATE_FACTOR] || 0) /
             store.stats.maxEstimateFactor) *
           100
         )
@@ -292,7 +327,7 @@ export default function useNode(
 
   const sharedHitPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_SHARED_HIT_BLOCKS] /
+      (node[Property.EXCLUSIVE_SHARED_HIT_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.shared]) *
       100
     )
@@ -300,7 +335,7 @@ export default function useNode(
 
   const sharedReadPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_SHARED_READ_BLOCKS] /
+      (node[Property.EXCLUSIVE_SHARED_READ_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.shared]) *
       100
     )
@@ -308,7 +343,7 @@ export default function useNode(
 
   const sharedDirtiedPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_SHARED_DIRTIED_BLOCKS] /
+      (node[Property.EXCLUSIVE_SHARED_DIRTIED_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.shared]) *
       100
     )
@@ -316,7 +351,7 @@ export default function useNode(
 
   const sharedWrittenPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_SHARED_WRITTEN_BLOCKS] /
+      (node[Property.EXCLUSIVE_SHARED_WRITTEN_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.shared]) *
       100
     )
@@ -324,7 +359,7 @@ export default function useNode(
 
   const tempReadPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_TEMP_READ_BLOCKS] /
+      (node[Property.EXCLUSIVE_TEMP_READ_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.temp]) *
       100
     )
@@ -332,7 +367,7 @@ export default function useNode(
 
   const tempWrittenPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_TEMP_WRITTEN_BLOCKS] /
+      (node[Property.EXCLUSIVE_TEMP_WRITTEN_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.temp]) *
       100
     )
@@ -340,7 +375,7 @@ export default function useNode(
 
   const localHitPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_LOCAL_HIT_BLOCKS] /
+      (node[Property.EXCLUSIVE_LOCAL_HIT_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.local]) *
       100
     )
@@ -348,7 +383,7 @@ export default function useNode(
 
   const localReadPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_LOCAL_READ_BLOCKS] /
+      (node[Property.EXCLUSIVE_LOCAL_READ_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.local]) *
       100
     )
@@ -356,7 +391,7 @@ export default function useNode(
 
   const localDirtiedPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS] /
+      (node[Property.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.local]) *
       100
     )
@@ -364,21 +399,22 @@ export default function useNode(
 
   const localWrittenPercent = computed((): number => {
     return (
-      (node[NodeProp.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS] /
+      (node[Property.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS] /
         store.stats.maxBlocks?.[BufferLocation.local]) *
       100
     )
   })
 
   const rowsTooltip = computed((): string => {
-    return ["Rows: ", rows(node[NodeProp.ACTUAL_ROWS_REVISED] as number)].join(
-      "",
-    )
+    return [
+      "Rows: ",
+      formatRows(node[Property.ACTUAL_ROWS_REVISED] as number),
+    ].join("")
   })
 
   const estimateFactorTooltip = computed((): string => {
-    const estimateFactor = node[NodeProp.PLANNER_ESTIMATE_FACTOR]
-    const estimateDirection = node[NodeProp.PLANNER_ESTIMATE_DIRECTION]
+    const estimateFactor = node[Property.PLANNER_ESTIMATE_FACTOR]
+    const estimateDirection = node[Property.PLANNER_ESTIMATE_DIRECTION]
     let text = ""
     if (estimateFactor === undefined || estimateDirection === undefined) {
       return "N/A"
@@ -395,32 +431,36 @@ export default function useNode(
     }
     text += " estimated"
     text +=
-      estimateFactor !== 1 ? " by <b>" + factor(estimateFactor) + "</b>" : ""
+      estimateFactor !== 1
+        ? " by <b>" + formatFactor(estimateFactor) + "</b>"
+        : ""
     text += "<br>"
-    text += `Rows: ${rows(node[NodeProp.ACTUAL_ROWS_REVISED])} `
-    text += `(${rows(node[NodeProp.PLAN_ROWS_REVISED] as number)} planned)`
+    text += `Rows: ${formatRows(node[Property.ACTUAL_ROWS_REVISED])} `
+    text += `(${formatRows(node[Property.PLAN_ROWS_REVISED] as number)} planned)`
     return text
   })
 
   const costTooltip = computed((): string => {
-    return ["Cost: ", rows(node[NodeProp.EXCLUSIVE_COST] as number)].join("")
+    return ["Cost: ", formatRows(node[Property.EXCLUSIVE_COST] as number)].join(
+      "",
+    )
   })
 
   const rowsRemovedTooltip = computed((): string => {
-    return `${NodeProp[rowsRemovedProp]}: ${tilde.value}${rows(rowsRemoved.value)}`
+    return `${Property[rowsRemovedProp]}: ${tilde}${formatRows(rowsRemoved.value)}`
   })
 
   const rowsIsFractional = computed((): boolean => {
-    return !!node[NodeProp.ACTUAL_ROWS_FRACTIONAL]
+    return !!node[Property.ACTUAL_ROWS_FRACTIONAL]
   })
 
   const hasSeveralLoops = computed((): boolean => {
-    return (node[NodeProp.ACTUAL_LOOPS] as number) > 1
+    return (node[Property.ACTUAL_LOOPS] as number) > 1
   })
 
-  const tilde = computed((): string => {
-    return !rowsIsFractional.value && hasSeveralLoops.value ? "~" : ""
-  })
+  const isApproximative = !rowsIsFractional.value && hasSeveralLoops.value
+
+  const tilde = isApproximative ? "~" : ""
 
   const buffersByLocationTooltip = computed(
     () =>
@@ -432,41 +472,41 @@ export default function useNode(
         let dirtied
         switch (location) {
           case BufferLocation.shared:
-            hit = node[NodeProp.EXCLUSIVE_SHARED_HIT_BLOCKS]
-            read = node[NodeProp.EXCLUSIVE_SHARED_READ_BLOCKS]
-            dirtied = node[NodeProp.EXCLUSIVE_SHARED_DIRTIED_BLOCKS]
-            written = node[NodeProp.EXCLUSIVE_SHARED_WRITTEN_BLOCKS]
+            hit = node[Property.EXCLUSIVE_SHARED_HIT_BLOCKS]
+            read = node[Property.EXCLUSIVE_SHARED_READ_BLOCKS]
+            dirtied = node[Property.EXCLUSIVE_SHARED_DIRTIED_BLOCKS]
+            written = node[Property.EXCLUSIVE_SHARED_WRITTEN_BLOCKS]
             break
           case BufferLocation.temp:
-            read = node[NodeProp.EXCLUSIVE_TEMP_READ_BLOCKS]
-            written = node[NodeProp.EXCLUSIVE_TEMP_WRITTEN_BLOCKS]
+            read = node[Property.EXCLUSIVE_TEMP_READ_BLOCKS]
+            written = node[Property.EXCLUSIVE_TEMP_WRITTEN_BLOCKS]
             break
           case BufferLocation.local:
-            hit = node[NodeProp.EXCLUSIVE_LOCAL_HIT_BLOCKS]
-            read = node[NodeProp.EXCLUSIVE_LOCAL_READ_BLOCKS]
-            dirtied = node[NodeProp.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS]
-            written = node[NodeProp.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS]
+            hit = node[Property.EXCLUSIVE_LOCAL_HIT_BLOCKS]
+            read = node[Property.EXCLUSIVE_LOCAL_READ_BLOCKS]
+            dirtied = node[Property.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS]
+            written = node[Property.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS]
             break
         }
         text += '<table class="table table-sm table-borderless mb-0">'
         text += hit
           ? '<tr><td>Hit:</td><td class="text-end">' +
-            blocks(hit, true) +
+            formatBlocks(hit, true) +
             "</td></tr>"
           : ""
         text += read
           ? '<tr><td>Read:</td><td class="text-end">' +
-            blocks(read, true) +
+            formatBlocks(read, true) +
             "</td></tr>"
           : ""
         text += dirtied
           ? '<tr><td>Dirtied:</td><td class="text-end">' +
-            blocks(dirtied, true) +
+            formatBlocks(dirtied, true) +
             "</td></tr>"
           : ""
         text += written
           ? '<tr><td>Written:</td><td class="text-end">' +
-            blocks(written, true) +
+            formatBlocks(written, true) +
             "</td></tr>"
           : ""
         text += "</table>"
@@ -490,29 +530,31 @@ export default function useNode(
       },
   )
 
-  const buffersByMetricTooltip = computed(() => (metric: NodeProp): string => {
+  const buffersByMetricTooltip = computed(() => (metric: Property): string => {
     let text = '<table class="table table-sm table-borderless mb-0">'
     text += `<tr><td>${metric}:</td><td class="text-end">`
     if (node[metric]) {
-      text += `${blocks(node[metric] as number, true)}</td></tr>`
+      text += `${formatBlocks(node[metric] as number, true)}</td></tr>`
     }
     return text
   })
 
   const heapFetchesTooltip = computed((): string => {
-    return `Heap Fetches: ${node[NodeProp.HEAP_FETCHES]?.toLocaleString()}`
+    return `Heap Fetches: ${node[Property.HEAP_FETCHES]?.toLocaleString()}`
   })
 
   // returns the formatted prop
-  function formattedProp(propName: keyof typeof NodeProp) {
-    const property = NodeProp[propName]
+  function formattedProp(propName: keyof typeof Property) {
+    const property = Property[propName]
     const value = node[property]
-    return formatNodeProp(property, value)
+    return formatProp(property, value)
   }
 
   return {
+    approximativeTooltip,
     barColor,
     barWidth,
+    bucketsBatchesClass,
     buffersByLocationTooltip,
     buffersByMetricTooltip,
     costClass,
@@ -529,6 +571,7 @@ export default function useNode(
     heapFetchesTooltip,
     highlightValue,
     indexRecheckTooltip,
+    isApproximative,
     isNeverExecuted,
     isParallelAware,
     localDirtiedPercent,

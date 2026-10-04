@@ -1,7 +1,7 @@
 <script lang="ts" setup>
+import { Property } from "@/enums"
+import { formatDuration } from "@/filters"
 import type { Node } from "@/interfaces"
-import { NodeProp } from "@/enums"
-import { duration } from "@/filters"
 interface Props {
   node: Node
 }
@@ -10,6 +10,7 @@ defineProps<Props>()
 
 <template>
   Duration:
-  <br />Exclusive: {{ duration(node[NodeProp.EXCLUSIVE_DURATION]) }}, Total:
-  {{ duration(node[NodeProp.ACTUAL_TOTAL_TIME]) }}
+  <br />Exclusive: {{ formatDuration(node[Property.EXCLUSIVE_DURATION]) }},
+  Total:
+  {{ formatDuration(node[Property.ACTUAL_TOTAL_TIME]) }}
 </template>

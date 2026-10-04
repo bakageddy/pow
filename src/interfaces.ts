@@ -1,9 +1,10 @@
 import type {
   BufferLocation,
+  EstimateDirection,
   HighlightType,
-  SortGroupsProp,
   SortSpaceMemoryProp,
 } from "@/enums"
+import { Property } from "@/enums"
 
 export interface IPlan {
   id: string
@@ -29,6 +30,8 @@ export interface IPlanContent {
   maxEstimateFactor?: number
   Triggers?: ITrigger[]
   JIT?: JIT
+  Serialization?: ISerialization
+  Planning?: IPlanning
   "Query Text"?: string
   [k: string]:
     | Node
@@ -37,6 +40,8 @@ export interface IPlanContent {
     | IBlocksStats
     | ITrigger[]
     | JIT
+    | IPlanning
+    | ISerialization
     | undefined
 }
 
@@ -58,6 +63,8 @@ export interface IPlanStats {
   maxEstimateFactor: number
   triggers?: ITrigger[]
   jitTime?: number
+  planning?: IPlanning
+  serialization?: ISerialization
   settings?: Settings
 }
 
@@ -65,7 +72,21 @@ export type IBlocksStats = {
   [key in BufferLocation]: number
 }
 
-import { EstimateDirection, NodeProp } from "@/enums"
+export type GroupingSet = {
+  [Property.HASH_KEYS]?: string[][]
+  [Property.GROUP_KEYS]?: string[][]
+  [Property.SORT_KEY]?: string[]
+}
+
+const STRATEGY_MAP = {
+  Group: "Sorted",
+  Hash: "Hashed",
+  Mixed: "Mixed",
+}
+
+export const REVERSE_STRATEGY_MAP = Object.fromEntries(
+  Object.entries(STRATEGY_MAP).map(([raw, mapped]) => [mapped, raw]),
+)
 
 // Class to create nodes when parsing text
 export class Node {
@@ -74,81 +95,90 @@ export class Node {
   ["Options"]?: Options;
   ["Timing"]?: Timing;
   ["Settings"]?: Settings;
-  [NodeProp.ACTUAL_LOOPS]!: number;
-  [NodeProp.ACTUAL_ROWS]!: number;
-  [NodeProp.ACTUAL_ROWS_REVISED]!: number;
-  [NodeProp.ACTUAL_STARTUP_TIME]?: number;
-  [NodeProp.ACTUAL_TOTAL_TIME]?: number;
-  [NodeProp.EXCLUSIVE_COST]!: number;
-  [NodeProp.EXCLUSIVE_DURATION]!: number;
-  [NodeProp.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_LOCAL_HIT_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_LOCAL_READ_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_SHARED_DIRTIED_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_SHARED_HIT_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_SHARED_READ_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_SHARED_WRITTEN_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_READ_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_WRITTEN_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_TEMP_READ_BLOCKS]!: number;
-  [NodeProp.EXCLUSIVE_TEMP_WRITTEN_BLOCKS]!: number;
-  [NodeProp.FILTER]!: string;
-  [NodeProp.PLANNER_ESTIMATE_DIRECTION]?: EstimateDirection;
-  [NodeProp.PLANNER_ESTIMATE_FACTOR]?: number;
-  [NodeProp.INDEX_NAME]?: string;
-  [NodeProp.NODE_TYPE]!: string;
-  [NodeProp.PARALLEL_AWARE]!: boolean;
-  [NodeProp.PLANS]!: Node[];
-  [NodeProp.PLAN_ROWS]!: number;
-  [NodeProp.PLAN_ROWS_REVISED]?: number;
-  [NodeProp.SUBPLAN_NAME]?: string;
-  [NodeProp.TOTAL_COST]!: number;
-  [NodeProp.WORKERS]?: Worker[];
-  [NodeProp.WORKERS_LAUNCHED]?: number;
-  [NodeProp.WORKERS_PLANNED]?: number;
-  [NodeProp.WORKERS_LAUNCHED_BY_GATHER]?: number;
-  [NodeProp.WORKERS_PLANNED_BY_GATHER]?: number;
-  [NodeProp.EXCLUSIVE_IO_READ_TIME]!: number;
-  [NodeProp.EXCLUSIVE_IO_WRITE_TIME]!: number;
-  [NodeProp.EXCLUSIVE_SHARED_IO_READ_TIME]!: number;
-  [NodeProp.EXCLUSIVE_SHARED_IO_WRITE_TIME]!: number;
-  [NodeProp.EXCLUSIVE_LOCAL_IO_READ_TIME]!: number;
-  [NodeProp.EXCLUSIVE_LOCAL_IO_WRITE_TIME]!: number;
-  [NodeProp.EXCLUSIVE_TEMP_IO_READ_TIME]!: number;
-  [NodeProp.EXCLUSIVE_TEMP_IO_WRITE_TIME]!: number;
-  [NodeProp.EXCLUSIVE_SUM_IO_READ_TIME]!: number;
-  [NodeProp.EXCLUSIVE_SUM_IO_WRITE_TIME]!: number;
-  [NodeProp.AVERAGE_IO_READ_SPEED]!: number;
-  [NodeProp.AVERAGE_IO_WRITE_SPEED]!: number;
-  [NodeProp.AVERAGE_SHARED_IO_READ_SPEED]!: number;
-  [NodeProp.AVERAGE_SHARED_IO_WRITE_SPEED]!: number;
-  [NodeProp.AVERAGE_LOCAL_IO_READ_SPEED]!: number;
-  [NodeProp.AVERAGE_LOCAL_IO_WRITE_SPEED]!: number;
-  [NodeProp.AVERAGE_TEMP_IO_READ_SPEED]!: number;
-  [NodeProp.AVERAGE_TEMP_IO_WRITE_SPEED]!: number;
-  [NodeProp.AVERAGE_SUM_IO_READ_SPEED]!: number;
-  [NodeProp.AVERAGE_SUM_IO_WRITE_SPEED]!: number;
-  [NodeProp.EXCLUSIVE_AVERAGE_SUM_IO_READ_SPEED]!: number;
-  [NodeProp.EXCLUSIVE_AVERAGE_SUM_IO_WRITE_SPEED]!: number;
-  [NodeProp.IO_READ_TIME]!: number;
-  [NodeProp.IO_WRITE_TIME]!: number;
-  [NodeProp.SHARED_IO_READ_TIME]!: number;
-  [NodeProp.SHARED_IO_WRITE_TIME]!: number;
-  [NodeProp.LOCAL_IO_READ_TIME]!: number;
-  [NodeProp.LOCAL_IO_WRITE_TIME]!: number;
-  [NodeProp.TEMP_IO_READ_TIME]!: number;
-  [NodeProp.TEMP_IO_WRITE_TIME]!: number;
-  [NodeProp.SUM_IO_READ_TIME]!: number;
-  [NodeProp.SUM_IO_WRITE_TIME]!: number;
-  [NodeProp.PARTIAL_MODE]!: string;
-  [NodeProp.SCAN_DIRECTION]!: string;
+  [Property.ACTUAL_LOOPS]!: number;
+  [Property.ACTUAL_ROWS]!: number;
+  [Property.ACTUAL_ROWS_REVISED]!: number;
+  [Property.ACTUAL_STARTUP_TIME]?: number;
+  [Property.ACTUAL_STARTUP_TIME_REVISED]?: number;
+  [Property.ACTUAL_TOTAL_TIME]?: number;
+  [Property.ACTUAL_TOTAL_TIME_REVISED]?: number;
+  [Property.ASYNC_CAPABLE]: boolean = false;
+  [Property.EXCLUSIVE_COST]!: number;
+  [Property.EXCLUSIVE_DURATION]!: number;
+  [Property.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS]!: number;
+  [Property.EXCLUSIVE_LOCAL_HIT_BLOCKS]!: number;
+  [Property.EXCLUSIVE_LOCAL_READ_BLOCKS]!: number;
+  [Property.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS]!: number;
+  [Property.EXCLUSIVE_SHARED_DIRTIED_BLOCKS]!: number;
+  [Property.EXCLUSIVE_SHARED_HIT_BLOCKS]!: number;
+  [Property.EXCLUSIVE_SHARED_READ_BLOCKS]!: number;
+  [Property.EXCLUSIVE_SHARED_WRITTEN_BLOCKS]!: number;
+  [Property.EXCLUSIVE_READ_BLOCKS]!: number;
+  [Property.EXCLUSIVE_WRITTEN_BLOCKS]!: number;
+  [Property.EXCLUSIVE_TEMP_READ_BLOCKS]!: number;
+  [Property.EXCLUSIVE_TEMP_WRITTEN_BLOCKS]!: number;
+  [Property.FILTER]!: string;
+  [Property.HASH_KEY]!: string[];
+  [Property.GROUPING_SETS]!: GroupingSet[];
+  [Property.GROUP_KEY]!: string[];
+  [Property.PLANNED_PARTITIONS]?: number;
+  [Property.PLANNER_ESTIMATE_DIRECTION]?: EstimateDirection;
+  [Property.PLANNER_ESTIMATE_FACTOR]?: number;
+  [Property.INDEX_NAME]?: string;
+  [Property.NODE_TYPE]!: string;
+  [Property.PARALLEL_AWARE]: boolean = false;
+  [Property.PLANS]!: Node[];
+  [Property.PLAN_ROWS]!: number;
+  [Property.PLAN_ROWS_REVISED]?: number;
+  [Property.SUBPLAN_NAME]?: string;
+  [Property.TOTAL_COST]!: number;
+  [Property.WORKERS]?: Worker[];
+  [Property.WORKERS_LAUNCHED]?: number;
+  [Property.WORKERS_PLANNED]?: number;
+  [Property.WORKERS_LAUNCHED_BY_GATHER]?: number;
+  [Property.WORKERS_PLANNED_BY_GATHER]?: number;
+  [Property.EXCLUSIVE_IO_READ_TIME]!: number;
+  [Property.EXCLUSIVE_IO_WRITE_TIME]!: number;
+  [Property.EXCLUSIVE_SHARED_IO_READ_TIME]!: number;
+  [Property.EXCLUSIVE_SHARED_IO_WRITE_TIME]!: number;
+  [Property.EXCLUSIVE_LOCAL_IO_READ_TIME]!: number;
+  [Property.EXCLUSIVE_LOCAL_IO_WRITE_TIME]!: number;
+  [Property.EXCLUSIVE_TEMP_IO_READ_TIME]!: number;
+  [Property.EXCLUSIVE_TEMP_IO_WRITE_TIME]!: number;
+  [Property.EXCLUSIVE_SUM_IO_READ_TIME]!: number;
+  [Property.EXCLUSIVE_SUM_IO_WRITE_TIME]!: number;
+  [Property.AVERAGE_IO_READ_SPEED]!: number;
+  [Property.AVERAGE_IO_WRITE_SPEED]!: number;
+  [Property.AVERAGE_SHARED_IO_READ_SPEED]!: number;
+  [Property.AVERAGE_SHARED_IO_WRITE_SPEED]!: number;
+  [Property.AVERAGE_LOCAL_IO_READ_SPEED]!: number;
+  [Property.AVERAGE_LOCAL_IO_WRITE_SPEED]!: number;
+  [Property.AVERAGE_TEMP_IO_READ_SPEED]!: number;
+  [Property.AVERAGE_TEMP_IO_WRITE_SPEED]!: number;
+  [Property.AVERAGE_SUM_IO_READ_SPEED]!: number;
+  [Property.AVERAGE_SUM_IO_WRITE_SPEED]!: number;
+  [Property.EXCLUSIVE_AVERAGE_SUM_IO_READ_SPEED]!: number;
+  [Property.EXCLUSIVE_AVERAGE_SUM_IO_WRITE_SPEED]!: number;
+  [Property.IO_READ_TIME]!: number;
+  [Property.IO_WRITE_TIME]!: number;
+  [Property.SHARED_IO_READ_TIME]!: number;
+  [Property.SHARED_IO_WRITE_TIME]!: number;
+  [Property.LOCAL_IO_READ_TIME]!: number;
+  [Property.LOCAL_IO_WRITE_TIME]!: number;
+  [Property.TEMP_IO_READ_TIME]!: number;
+  [Property.TEMP_IO_WRITE_TIME]!: number;
+  [Property.SUM_IO_READ_TIME]!: number;
+  [Property.SUM_IO_WRITE_TIME]!: number;
+  [Property.PARTIAL_MODE]!: string;
+  [Property.SCAN_DIRECTION]!: string;
+  [Property.DISABLED]: boolean = false;
   [k: string]:
     | Node[]
     | Options
     | SortGroups
     | Timing
     | Worker[]
+    | GroupingSet[]
     | boolean
     | number
     | string
@@ -159,16 +189,17 @@ export class Node {
     if (!type) {
       return
     }
-    this[NodeProp.NODE_TYPE] = type
+    this[Property.NODE_TYPE] = type
 
     enum ScanAndOperationMatch {
       NodeType = 1,
+      AsyncCapable,
       RelationName,
       Alias,
     }
     // tslint:disable-next-line:max-line-length
     const scanAndOperationsRegex =
-      /^((?:Parallel\s+)?(?:Seq|Tid.*|Bitmap\s+Heap|WorkTable|(?:Async\s+)?Foreign)\s+Scan|Update|Insert|Delete|Merge)\son\s(\S+)(?:\s+(\S+))?$/.exec(
+      /^((?:Parallel\s+)?(?:Seq|Tid.*|Bitmap\s+Heap|WorkTable|(Async\s+)?Foreign)\s+Scan|Update|Insert|Delete|Merge)\son\s(\S+)(?:\s+(\S+))?$/.exec(
         type,
       )
 
@@ -210,83 +241,120 @@ export class Node {
       Alias,
     }
     const subqueryRegex = /^(Subquery\sScan)\son\s(.+)$/.exec(type)
+
+    enum AggregateMatch {
+      PartialMode = 1,
+      Strategy = 2,
+    }
+    const aggregateRegex =
+      /^(Partial|Finalize)*\s*(Group|Hash|Mixed|[A-z]*)*Aggregate$/.exec(type)
+
     if (scanAndOperationsRegex) {
-      this[NodeProp.NODE_TYPE] =
+      this[Property.NODE_TYPE] =
         scanAndOperationsRegex[ScanAndOperationMatch.NodeType]
-      this[NodeProp.RELATION_NAME] =
+      this[Property.RELATION_NAME] =
         scanAndOperationsRegex[ScanAndOperationMatch.RelationName]
-      if (scanAndOperationsRegex[ScanAndOperationMatch.Alias]) {
-        this[NodeProp.ALIAS] =
-          scanAndOperationsRegex[ScanAndOperationMatch.Alias]
+      this[Property.ALIAS] =
+        scanAndOperationsRegex[ScanAndOperationMatch.Alias] ||
+        this[Property.RELATION_NAME]
+      if (scanAndOperationsRegex[ScanAndOperationMatch.AsyncCapable]) {
+        this[Property.ASYNC_CAPABLE] = true
+        this[Property.NODE_TYPE] = this[Property.NODE_TYPE].replace(
+          /Async\s+/,
+          "",
+        )
       }
     } else if (bitmapRegex) {
-      this[NodeProp.NODE_TYPE] = bitmapRegex[BitmapMatch.NodeType]
-      this[NodeProp.INDEX_NAME] = bitmapRegex[BitmapMatch.IndexName]
+      this[Property.NODE_TYPE] = bitmapRegex[BitmapMatch.NodeType]
+      this[Property.INDEX_NAME] = bitmapRegex[BitmapMatch.IndexName]
     } else if (indexRegex) {
-      this[NodeProp.NODE_TYPE] = indexRegex[IndexMatch.NodeType]
-      this[NodeProp.INDEX_NAME] = indexRegex[IndexMatch.IndexName]
-      this[NodeProp.SCAN_DIRECTION] = indexRegex[IndexMatch.ScanDirection] ? "Backward" : "Forward"
-      this[NodeProp.RELATION_NAME] = indexRegex[IndexMatch.RelationName]
+      this[Property.NODE_TYPE] = indexRegex[IndexMatch.NodeType]
+      this[Property.INDEX_NAME] = indexRegex[IndexMatch.IndexName]
+      this[Property.SCAN_DIRECTION] = indexRegex[IndexMatch.ScanDirection]
+        ? "Backward"
+        : "Forward"
+      this[Property.RELATION_NAME] = indexRegex[IndexMatch.RelationName]
       if (indexRegex[IndexMatch.Alias]) {
-        this[NodeProp.ALIAS] = indexRegex[IndexMatch.Alias]
+        this[Property.ALIAS] = indexRegex[IndexMatch.Alias]
       }
     } else if (cteRegex) {
-      this[NodeProp.NODE_TYPE] = cteRegex[CteMatch.NodeType]
-      this[NodeProp.CTE_NAME] = cteRegex[CteMatch.CteName]
+      this[Property.NODE_TYPE] = cteRegex[CteMatch.NodeType]
+      this[Property.CTE_NAME] = cteRegex[CteMatch.CteName]
       if (cteRegex[CteMatch.Alias]) {
-        this[NodeProp.ALIAS] = cteRegex[CteMatch.Alias]
+        this[Property.ALIAS] = cteRegex[CteMatch.Alias]
       }
     } else if (functionRegex) {
-      this[NodeProp.NODE_TYPE] = functionRegex[FunctionMatch.NodeType]
-      this[NodeProp.FUNCTION_NAME] = functionRegex[FunctionMatch.FunctionName]
+      this[Property.NODE_TYPE] = functionRegex[FunctionMatch.NodeType]
+      this[Property.FUNCTION_NAME] = functionRegex[FunctionMatch.FunctionName]
       if (functionRegex[FunctionMatch.Alias]) {
-        this[NodeProp.ALIAS] = functionRegex[FunctionMatch.Alias]
+        this[Property.ALIAS] = functionRegex[FunctionMatch.Alias]
       }
     } else if (subqueryRegex) {
-      this[NodeProp.NODE_TYPE] = subqueryRegex[SubqueryMatch.NodeType]
-      this[NodeProp.ALIAS] = subqueryRegex[SubqueryMatch.Alias]
+      this[Property.NODE_TYPE] = subqueryRegex[SubqueryMatch.NodeType]
+      this[Property.ALIAS] = subqueryRegex[SubqueryMatch.Alias]
+    } else if (aggregateRegex) {
+      this[Property.NODE_TYPE] = "Aggregate"
+      this[Property.PARTIAL_MODE] =
+        aggregateRegex[AggregateMatch.PartialMode] || "Simple"
+
+      const rawStrategy = aggregateRegex[AggregateMatch.Strategy]
+      let strategy
+      if (rawStrategy === undefined) {
+        strategy = "Plain"
+      } else if (rawStrategy in STRATEGY_MAP) {
+        strategy = STRATEGY_MAP[rawStrategy as keyof typeof STRATEGY_MAP]
+      } else {
+        strategy = rawStrategy
+        console.error(`Unsupported Aggregate node strategy: ${rawStrategy}`)
+      }
+
+      if (["Hash", "Mixed"].includes(rawStrategy)) {
+        this[Property.PLANNED_PARTITIONS] =
+          this[Property.PLANNED_PARTITIONS] || 0
+      }
+      this[Property.STRATEGY] = strategy
     }
     enum ParallelMatch {
       NodeType = 2,
     }
     const parallelRegex = /^(Parallel\s+)(.*)/.exec(
-      <string>this[NodeProp.NODE_TYPE],
+      <string>this[Property.NODE_TYPE],
     )
     if (parallelRegex) {
-      this[NodeProp.NODE_TYPE] = parallelRegex[ParallelMatch.NodeType]
-      this[NodeProp.PARALLEL_AWARE] = true
+      this[Property.NODE_TYPE] = parallelRegex[ParallelMatch.NodeType]
+      this[Property.PARALLEL_AWARE] = true
+    }
+
+    enum AsyncMatch {
+      NodeType = 2,
+    }
+    const asyncRegex = /^(Async\s+)(.*)/.exec(<string>this[Property.NODE_TYPE])
+    if (asyncRegex) {
+      this[Property.NODE_TYPE] = asyncRegex[AsyncMatch.NodeType]
+      this[Property.ASYNC_CAPABLE] = true
     }
 
     enum JoinMatch {
       NodeType = 1,
-    }
-    const joinRegex = /(.*)\sJoin$/.exec(<string>this[NodeProp.NODE_TYPE])
-
-    enum JoinModifierMatch {
-      NodeType = 1,
       JoinType,
     }
-    const joinModifierRegex = /(.*)\s+(Full|Left|Right|Anti)/.exec(
-      <string>this[NodeProp.NODE_TYPE],
-    )
+    const joinRegex =
+      /^(Nested Loop|Hash|Merge)(?:\s+(Right Semi|Right Anti|Left|Right|Full|Semi|Anti))?\s+Join$/.exec(
+        <string>this[Property.NODE_TYPE],
+      )
     if (joinRegex) {
-      this[NodeProp.NODE_TYPE] = joinRegex[JoinMatch.NodeType]
-      if (joinModifierRegex) {
-        this[NodeProp.NODE_TYPE] = joinModifierRegex[JoinModifierMatch.NodeType]
-        this[NodeProp.JOIN_TYPE] = joinModifierRegex[JoinModifierMatch.JoinType]
-      }
-      this[NodeProp.NODE_TYPE] += " Join"
+      this[Property.NODE_TYPE] = joinRegex[JoinMatch.NodeType]
+      this[Property.JOIN_TYPE] = joinRegex[JoinMatch.JoinType] || "Inner"
+      // Re-add "Join" suffix to nodes with type != "Nested Loop"
+      this[Property.NODE_TYPE] +=
+        this[Property.NODE_TYPE] == "Nested Loop" ? "" : " Join"
     }
   }
 }
 
-import { WorkerProp } from "@/enums"
-// Class to create workers when parsing text
-export class Worker {
+export interface Worker {
+  [Property.WORKER_NUMBER]: number
   [k: string]: string | number | object
-  constructor(workerNumber: number) {
-    this[WorkerProp.WORKER_NUMBER] = workerNumber
-  }
 }
 
 export type Options = {
@@ -302,8 +370,8 @@ export type Settings = {
 }
 
 export type SortGroups = {
-  [SortGroupsProp.SORT_METHODS_USED]: string[]
-  [SortGroupsProp.SORT_SPACE_MEMORY]: SortSpaceMemory
+  [Property.SORT_METHODS_USED]: string[]
+  [Property.SORT_SPACE_MEMORY]: SortSpaceMemory
   [key: string]: number | string | string[] | SortSpaceMemory
 }
 
@@ -329,6 +397,49 @@ export type ViewOptions = {
 export interface JIT {
   ["Timing"]: Timing
   [key: string]: number | Timing
+}
+
+export interface IOBuffers {
+  [Property.LOCAL_DIRTIED_BLOCKS]: number
+  [Property.LOCAL_HIT_BLOCKS]: number
+  [Property.LOCAL_READ_BLOCKS]: number
+  [Property.LOCAL_WRITTEN_BLOCKS]: number
+  [Property.SHARED_DIRTIED_BLOCKS]: number
+  [Property.SHARED_HIT_BLOCKS]: number
+  [Property.SHARED_READ_BLOCKS]: number
+  [Property.SHARED_WRITTEN_BLOCKS]: number
+  [Property.TEMP_READ_BLOCKS]: number
+  [Property.TEMP_WRITTEN_BLOCKS]: number
+  [Property.READ_BLOCKS]: number
+  [Property.WRITTEN_BLOCKS]: number
+  [Property.IO_READ_TIME]: number
+  [Property.IO_WRITE_TIME]: number
+  [Property.SHARED_IO_READ_TIME]: number
+  [Property.SHARED_IO_WRITE_TIME]: number
+  [Property.TEMP_IO_READ_TIME]: number
+  [Property.TEMP_IO_WRITE_TIME]: number
+  [Property.AVERAGE_IO_READ_SPEED]: number
+  [Property.AVERAGE_IO_WRITE_SPEED]: number
+}
+
+export interface IPlanning extends IOBuffers {
+  ["Memory Used"]: number
+  ["Memory Allocated"]: number
+}
+
+export interface ISerialization {
+  Time: number
+  "Output Volume": number
+  [Property.LOCAL_DIRTIED_BLOCKS]: number
+  [Property.LOCAL_HIT_BLOCKS]: number
+  [Property.LOCAL_READ_BLOCKS]: number
+  [Property.LOCAL_WRITTEN_BLOCKS]: number
+  [Property.SHARED_DIRTIED_BLOCKS]: number
+  [Property.SHARED_HIT_BLOCKS]: number
+  [Property.SHARED_READ_BLOCKS]: number
+  [Property.SHARED_WRITTEN_BLOCKS]: number
+  [Property.TEMP_READ_BLOCKS]: number
+  [Property.TEMP_WRITTEN_BLOCKS]: number
 }
 
 // A plan node with id, node, isLastSibling, branches

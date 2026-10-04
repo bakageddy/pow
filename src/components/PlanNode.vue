@@ -1,25 +1,27 @@
 <script lang="ts" setup>
+import {
+  faChevronDown,
+  faChevronUp,
+  faSearch,
+} from "@fortawesome/free-solid-svg-icons"
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import { inject, nextTick, onMounted, provide, reactive, ref, watch } from "vue"
-import PlanNodeDetail from "@/components/PlanNodeDetail.vue"
+
+import DisabledBadge from "@/components/DisabledBadge.vue"
 import NodeBadges from "@/components/NodeBadges.vue"
+import PlanNodeDetail from "@/components/PlanNodeDetail.vue"
+import { HighlightType, Property } from "@/enums"
+import { keysToString, sortKeys } from "@/filters"
 import type { IPlan, Node, ViewOptions } from "@/interfaces"
+import useNode from "@/node"
+import { findNodeBySubplanName } from "@/services/help-service"
+import { store } from "@/store"
 import {
   HighlightedNodeIdKey,
   SelectedNodeIdKey,
   SelectNodeKey,
   ViewOptionsKey,
 } from "@/symbols"
-import { keysToString, sortKeys } from "@/filters"
-import { HighlightType, NodeProp } from "@/enums"
-import { findNodeBySubplanName } from "@/services/help-service"
-import useNode from "@/node"
-import { store } from "@/store"
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
-import {
-  faChevronDown,
-  faChevronUp,
-  faSearch,
-} from "@fortawesome/free-solid-svg-icons"
 
 const outerEl = ref<Element | null>(null) // The outer Element, useful for CTE and subplans
 
@@ -89,7 +91,7 @@ watch(selectedNodeId, () => {
 function centerCte() {
   const cteNode = findNodeBySubplanName(
     store.plan as IPlan,
-    node[NodeProp.CTE_NAME] as string,
+    node[Property.CTE_NAME] as string,
   )
   if (cteNode) {
     selectNode?.(cteNode.nodeId, true)
@@ -110,9 +112,9 @@ function centerCte() {
         },
       ]"
     >
-      <div v-if="node[NodeProp.SUBPLAN_NAME]" class="fixed-bottom text-center">
+      <div v-if="node[Property.SUBPLAN_NAME]" class="fixed-bottom text-center">
         <b class="subplan-name fst-italic px-1">
-          {{ node[NodeProp.SUBPLAN_NAME] }}
+          {{ node[Property.SUBPLAN_NAME] }}
         </b>
       </div>
       <div
@@ -158,13 +160,13 @@ function centerCte() {
                 ></FontAwesomeIcon>
               </span>
               {{ nodeName }}
+              <DisabledBadge :node="node" />
             </h4>
             <div class="text-nowrap">
               <NodeBadges :node="node" />
               <a
                 class="fw-normal small ms-1"
-                href=""
-                @click.prevent.stop="selectNode(node.nodeId, true)"
+                :href="`#plan/node/${node.nodeId}`"
               >
                 #{{ node.nodeId }}
               </a>
@@ -173,78 +175,76 @@ function centerCte() {
           <div class="text-start font-monospace">
             <div
               v-if="
-                node[NodeProp.RELATION_NAME] || node[NodeProp.FUNCTION_NAME]
+                node[Property.RELATION_NAME] || node[Property.FUNCTION_NAME]
               "
               :class="{ 'line-clamp-2': !showDetails }"
             >
               <span class="text-body-tertiary">on</span>
-              <span v-if="node[NodeProp.SCHEMA]"
-                >{{ node[NodeProp.SCHEMA] }}.</span
-              >{{ node[NodeProp.RELATION_NAME] }}
-              {{ node[NodeProp.FUNCTION_NAME] }}
-              <span v-if="node[NodeProp.ALIAS]">
+              <span v-if="node[Property.SCHEMA]"
+                >{{ node[Property.SCHEMA] }}.</span
+              >{{ node[Property.RELATION_NAME] }}
+              {{ node[Property.FUNCTION_NAME] }}
+              <span v-if="node[Property.ALIAS]">
                 <span class="text-body-tertiary">as</span>
-                {{ node[NodeProp.ALIAS] }}
+                {{ node[Property.ALIAS] }}
               </span>
             </div>
             <div
-              v-else-if="node[NodeProp.ALIAS]"
+              v-else-if="node[Property.ALIAS]"
               :class="{ 'line-clamp-2': !showDetails }"
             >
               <span class="text-body-tertiary">on</span>
               <span
-                v-html="keysToString(node[NodeProp.ALIAS] as string)"
+                v-html="keysToString(node[Property.ALIAS] as string)"
               ></span>
             </div>
             <div
-              v-if="node[NodeProp.GROUP_KEY]"
+              v-if="node[Property.GROUP_KEY]"
               :class="{ 'line-clamp-2': !showDetails }"
             >
               <span class="text-body-tertiary">by</span>
-              <span
-                v-html="keysToString(node[NodeProp.GROUP_KEY] as string)"
-              ></span>
+              <span v-html="keysToString(node[Property.GROUP_KEY])"></span>
             </div>
             <div
-              v-if="node[NodeProp.SORT_KEY]"
+              v-if="node[Property.SORT_KEY]"
               :class="{ 'line-clamp-2': !showDetails }"
             >
               <span class="text-body-tertiary">by</span>
               <span
                 v-html="
                   sortKeys(
-                    node[NodeProp.SORT_KEY] as string[],
-                    node[NodeProp.PRESORTED_KEY] as string[],
+                    node[Property.SORT_KEY] as string[],
+                    node[Property.PRESORTED_KEY] as string[],
                   )
                 "
               ></span>
             </div>
             <div
-              v-if="node[NodeProp.INDEX_NAME]"
+              v-if="node[Property.INDEX_NAME]"
               :class="{ 'line-clamp-2': !showDetails }"
             >
               <span class="text-body-tertiary">using</span>
               <span
-                v-html="keysToString(node[NodeProp.INDEX_NAME] as string)"
+                v-html="keysToString(node[Property.INDEX_NAME] as string)"
               ></span>
             </div>
             <div
-              v-if="node[NodeProp.HASH_CONDITION]"
+              v-if="node[Property.HASH_CONDITION]"
               :class="{ 'line-clamp-2': !showDetails }"
             >
               <span class="text-body-tertiary">on</span>
               <span
-                v-html="keysToString(node[NodeProp.HASH_CONDITION] as string)"
+                v-html="keysToString(node[Property.HASH_CONDITION] as string)"
               ></span>
             </div>
-            <div v-if="node[NodeProp.CTE_NAME]">
+            <div v-if="node[Property.CTE_NAME]">
               <a class="text-reset" href="" @click.prevent.stop="centerCte">
                 <FontAwesomeIcon
                   :icon="faSearch"
                   class="text-body-tertiary"
                 ></FontAwesomeIcon>
                 <span class="text-body-tertiary">CTE</span>
-                {{ node[NodeProp.CTE_NAME] }}
+                {{ node[Property.CTE_NAME] }}
               </a>
             </div>
           </div>

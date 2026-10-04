@@ -1,17 +1,4 @@
 <script lang="ts" setup>
-import { computed, inject, onBeforeMount, reactive, ref, watch } from "vue"
-import { directive as vTippy } from "vue-tippy"
-import type { Node, ViewOptions } from "@/interfaces"
-import { HelpService } from "@/services/help-service"
-import { EstimateDirection, NodeProp } from "@/enums"
-import useNode from "@/node"
-import { store } from "@/store"
-import IoTooltip from "@/components/tooltip/IoTooltip.vue"
-import WorkersDetail from "@/components/WorkersDetail.vue"
-import MiscDetail from "@/components/MiscDetail.vue"
-import { ViewOptionsKey } from "@/symbols"
-import _ from "lodash"
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import {
   faAlignJustify,
   faArrowDown,
@@ -23,6 +10,24 @@ import {
   faInfoCircle,
   faUndo,
 } from "@fortawesome/free-solid-svg-icons"
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
+import _ from "lodash"
+import { computed, inject, onBeforeMount, reactive, ref, watch } from "vue"
+import { directive as vTippy } from "vue-tippy"
+
+import Approximative from "@/components/Approximative.vue"
+import BucketsDetail from "@/components/BucketsDetail.vue"
+import BuffersDetail from "@/components/BuffersDetail.vue"
+import IoTable from "@/components/IoTable.vue"
+import MiscDetail from "@/components/MiscDetail.vue"
+import SortDetail from "@/components/SortDetail.vue"
+import WorkersDetail from "@/components/WorkersDetail.vue"
+import { EstimateDirection, Property } from "@/enums"
+import type { Node, ViewOptions } from "@/interfaces"
+import useNode from "@/node"
+import { getNodeTypeDescription } from "@/services/help-service"
+import { store } from "@/store"
+import { ViewOptionsKey } from "@/symbols"
 
 const viewOptions = inject(ViewOptionsKey) as ViewOptions
 
@@ -36,16 +41,13 @@ const updateSize = inject<(node: Node) => null>("updateSize")
 const node = reactive<Node>(props.node)
 const nodeProps = ref<
   {
-    key: keyof typeof NodeProp
+    key: keyof typeof Property
     value: unknown
   }[]
 >()
 
 // UI flags
 const activeTab = ref<string>("general")
-
-const helpService = new HelpService()
-const getNodeTypeDescription = helpService.getNodeTypeDescription
 
 const {
   costClass,
@@ -80,16 +82,16 @@ const shouldShowPlannerEstimate = computed(() => {
 // create an array of node propeties so that they can be displayed in the view
 function calculateProps() {
   nodeProps.value = _.chain(node)
-    .omit(NodeProp.PLANS)
-    .omit(NodeProp.WORKERS)
+    .omit(Property.PLANS)
+    .omit(Property.WORKERS)
     .map((value, key) => {
-      return { key: key as keyof typeof NodeProp, value }
+      return { key: key as keyof typeof Property, value }
     })
     .value()
 }
 
 const shouldShowIoBuffers = computed((): boolean => {
-  const properties: Array<keyof typeof NodeProp> = [
+  const properties: Array<keyof typeof Property> = [
     "EXCLUSIVE_SHARED_HIT_BLOCKS",
     "EXCLUSIVE_SHARED_READ_BLOCKS",
     "EXCLUSIVE_SHARED_DIRTIED_BLOCKS",
@@ -104,7 +106,7 @@ const shouldShowIoBuffers = computed((): boolean => {
     "EXCLUSIVE_IO_WRITE_TIME",
   ]
   const values = _.map(properties, (property) => {
-    const value = node[NodeProp[property]]
+    const value = node[Property[property]]
     return _.isNaN(value) ? 0 : value
   })
   const sum = _.sum(values)
@@ -119,11 +121,11 @@ watch(activeTab, () => {
 <template>
   <div class="card-header border-top">
     <div
-      v-if="getNodeTypeDescription(node[NodeProp.NODE_TYPE])"
+      v-if="getNodeTypeDescription(node[Property.NODE_TYPE])"
       class="node-description"
     >
-      <span class="node-type">{{ node[NodeProp.NODE_TYPE] }} Node</span>
-      <span v-html="getNodeTypeDescription(node[NodeProp.NODE_TYPE])"></span>
+      <span class="node-type">{{ node[Property.NODE_TYPE] }} Node</span>
+      <span v-html="getNodeTypeDescription(node[Property.NODE_TYPE])"></span>
     </div>
     <ul class="nav nav-tabs card-header-tabs">
       <li class="nav-item">
@@ -152,7 +154,7 @@ watch(activeTab, () => {
           class="nav-link"
           :class="{
             active: activeTab === 'output',
-            disabled: !node[NodeProp.OUTPUT],
+            disabled: !node[Property.OUTPUT],
           }"
           @click.prevent.stop="activeTab = 'output'"
           href=""
@@ -165,8 +167,8 @@ watch(activeTab, () => {
           :class="{
             active: activeTab === 'workers',
             disabled: !(
-              node[NodeProp.WORKERS_PLANNED] ||
-              node[NodeProp.WORKERS_PLANNED_BY_GATHER]
+              node[Property.WORKERS_PLANNED] ||
+              node[Property.WORKERS_PLANNED_BY_GATHER]
             ),
           }"
           @click.prevent.stop="activeTab = 'workers'"
@@ -218,9 +220,10 @@ watch(activeTab, () => {
         <span class="px-1">{{
           tilde + formattedProp("ACTUAL_ROWS_REVISED")
         }}</span>
-        <span class="text-body-tertiary" v-if="node[NodeProp.PLAN_ROWS]"
+        <span class="text-body-tertiary" v-if="node[Property.PLAN_ROWS]"
           >(Planned: {{ tilde + formattedProp("PLAN_ROWS_REVISED") }})</span
         >
+        <Approximative :node="node" />
         <span
           v-if="
             plannerRowEstimateDirection !== EstimateDirection.none &&
@@ -251,7 +254,7 @@ watch(activeTab, () => {
           :icon="faFilter"
           class="text-body-tertiary"
         ></FontAwesomeIcon>
-        <b> {{ NodeProp[rowsRemovedProp] }}: </b>
+        <b> {{ Property[rowsRemovedProp] }}: </b>
         <span>
           <span class="px-1">{{ tilde + formattedProp(rowsRemovedProp) }}</span
           >|
@@ -259,6 +262,7 @@ watch(activeTab, () => {
             >{{ rowsRemovedPercentString }}%</span
           >
         </span>
+        <Approximative :node="node" />
         <FontAwesomeIcon
           fixed-width
           :icon="faInfoCircle"
@@ -274,7 +278,7 @@ watch(activeTab, () => {
           v-else
         ></FontAwesomeIcon>
       </div>
-      <div v-if="node[NodeProp.HEAP_FETCHES]">
+      <div v-if="node[Property.HEAP_FETCHES]">
         <FontAwesomeIcon
           fixed-width
           :icon="faExchangeAlt"
@@ -298,7 +302,7 @@ watch(activeTab, () => {
           }"
         ></FontAwesomeIcon>
       </div>
-      <div v-if="!_.isUndefined(node[NodeProp.EXCLUSIVE_COST])">
+      <div v-if="!_.isUndefined(node[Property.EXCLUSIVE_COST])">
         <FontAwesomeIcon
           fixed-width
           :icon="faDollarSign"
@@ -312,7 +316,7 @@ watch(activeTab, () => {
           >(Total: {{ formattedProp("TOTAL_COST") }})</span
         >
       </div>
-      <div v-if="node[NodeProp.ACTUAL_LOOPS] > 1">
+      <div v-if="node[Property.ACTUAL_LOOPS] > 1">
         <FontAwesomeIcon
           fixed-width
           :icon="faUndo"
@@ -321,77 +325,16 @@ watch(activeTab, () => {
         <b>Loops:</b>
         <span class="px-1">{{ formattedProp("ACTUAL_LOOPS") }} </span>
       </div>
+      <SortDetail :node="node" />
       <!-- general tab -->
     </div>
     <div class="tab-pane" :class="{ 'show active': activeTab === 'iobuffer' }">
       <!-- iobuffer tab -->
-      <IoTooltip :node="node" exclusive />
-      <table class="table table-sm">
-        <thead>
-          <tr>
-            <th>Blocks</th>
-            <td class="text-end" width="25%">Hit</td>
-            <td class="text-end" width="25%">Read</td>
-            <td class="text-end" width="25%">Dirtied</td>
-            <td class="text-end" width="25%">Written</td>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Shared</td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_SHARED_HIT_BLOCKS') || '-'"
-            ></td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_SHARED_READ_BLOCKS') || '-'"
-            ></td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_SHARED_DIRTIED_BLOCKS') || '-'"
-            ></td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_SHARED_WRITTEN_BLOCKS') || '-'"
-            ></td>
-          </tr>
-          <tr>
-            <td>Temp</td>
-            <td class="text-end bg-hatched"></td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_TEMP_READ_BLOCKS') || '-'"
-            ></td>
-            <td class="text-end bg-hatched"></td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_TEMP_WRITTEN_BLOCKS') || '-'"
-            ></td>
-          </tr>
-          <tr>
-            <td>Local</td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_LOCAL_HIT_BLOCKS') || '-'"
-            ></td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_LOCAL_READ_BLOCKS') || '-'"
-            ></td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_LOCAL_DIRTIED_BLOCKS') || '-'"
-            ></td>
-            <td
-              class="text-end"
-              v-html="formattedProp('EXCLUSIVE_LOCAL_WRITTEN_BLOCKS') || '-'"
-            ></td>
-          </tr>
-        </tbody>
-      </table>
+      <BucketsDetail :node="node" />
+      <IoTable :object="node" exclusive />
+      <BuffersDetail :object="node" />
       <div
-        v-if="node[NodeProp.WAL_RECORDS] || node[NodeProp.WAL_BYTES]"
+        v-if="node[Property.WAL_RECORDS] || node[Property.WAL_BYTES]"
         class="mb-2"
       >
         <b>
@@ -399,7 +342,7 @@ watch(activeTab, () => {
         </b>
         {{ formattedProp("WAL_RECORDS") }} records
         <small>({{ formattedProp("WAL_BYTES") }})</small>
-        <span v-if="node[NodeProp.WAL_FPI]">
+        <span v-if="node[Property.WAL_FPI]">
           -
           <span class="more-info" v-tippy="'WAL Full Page Images'">FPI</span>:
           {{ formattedProp("WAL_FPI") }}
@@ -418,8 +361,8 @@ watch(activeTab, () => {
       class="tab-pane"
       :class="{ 'show active': activeTab === 'workers' }"
       v-if="
-        node[NodeProp.WORKERS_PLANNED] ||
-        node[NodeProp.WORKERS_PLANNED_BY_GATHER]
+        node[Property.WORKERS_PLANNED] ||
+        node[Property.WORKERS_PLANNED_BY_GATHER]
       "
     >
       <!-- workers tab -->

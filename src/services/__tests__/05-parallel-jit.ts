@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { PlanService } from "@/services/plan-service"
-import type { IPlan, IPlanContent } from "@/interfaces"
-import { NodeProp } from "@/enums"
 
+import { Property } from "@/enums"
+import type { IPlan, IPlanContent } from "@/interfaces"
 import { findNodeById } from "@/services/help-service"
+import { PlanService } from "@/services/plan-service"
 
 // In this plan, we have JIT info in the workers detail
 
@@ -164,6 +164,6 @@ Execution Time: 1639.241 ms
   const plan: IPlan = planService.createPlan("", r, "")
   it("takes workers into account", () => {
     const parallelhashjoin = findNodeById(plan, 5)
-    expect(parallelhashjoin?.[NodeProp.NODE_TYPE]).toBe("Hash Join")
+    expect(parallelhashjoin?.[Property.NODE_TYPE]).toBe("Hash Join")
   })
 })

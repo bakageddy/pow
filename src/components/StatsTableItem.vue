@@ -1,14 +1,15 @@
 <script lang="ts" setup>
-import _ from "lodash"
-import { ref } from "vue"
-import type { Node, StatsTableItemType } from "@/interfaces"
-import { NodeProp } from "@/enums"
-import { duration, durationClass, percent } from "@/filters"
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import {
   faChevronDown,
   faChevronRight,
 } from "@fortawesome/free-solid-svg-icons"
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
+import _ from "lodash"
+import { ref } from "vue"
+
+import { Property } from "@/enums"
+import { durationClass, formatDuration, formatPercent } from "@/filters"
+import type { Node, StatsTableItemType } from "@/interfaces"
 
 interface Props {
   value: StatsTableItemType
@@ -21,7 +22,7 @@ const expanded = ref<boolean>(false)
 
 function durationPercent(node: Node) {
   return (
-    (node[NodeProp.EXCLUSIVE_DURATION] as number) /
+    (node[Property.EXCLUSIVE_DURATION] as number) /
     (props.executionTime as number)
   )
 }
@@ -49,16 +50,16 @@ function durationPercent(node: Node) {
           class="alert p-0 px-1"
           :class="durationClass(props.value.timePercent * 100)"
         >
-          {{ duration(props.value.time) }}
+          {{ formatDuration(props.value.time) }}
         </span>
       </th>
-      <th class="text-end">{{ percent(props.value.timePercent) }}</th>
+      <th class="text-end">{{ formatPercent(props.value.timePercent) }}</th>
     </tr>
   </thead>
   <tbody :class="expanded ? '' : 'd-none'">
     <tr
       v-for="node in _.reverse(
-        _.sortBy(props.value.nodes, NodeProp.EXCLUSIVE_DURATION),
+        _.sortBy(props.value.nodes, Property.EXCLUSIVE_DURATION),
       )"
       :key="node.nodeId"
       style="font-size: smaller"
@@ -67,16 +68,16 @@ function durationPercent(node: Node) {
         <a :href="`#plan/node/${node.nodeId}`" class="me-1"
           >#{{ node.nodeId }}</a
         >
-        {{ node[NodeProp.NODE_TYPE] }}
+        {{ node[Property.NODE_TYPE] }}
       </td>
       <td class="text-end"></td>
       <td class="text-end">
         <span class="px-1">
-          {{ duration(node[NodeProp.EXCLUSIVE_DURATION]) }}
+          {{ formatDuration(node[Property.EXCLUSIVE_DURATION]) }}
         </span>
       </td>
       <td class="text-end">
-        {{ percent(durationPercent(node)) }}
+        {{ formatPercent(durationPercent(node)) }}
       </td>
     </tr>
   </tbody>

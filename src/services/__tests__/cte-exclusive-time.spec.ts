@@ -1,11 +1,12 @@
-import { describe, expect, test } from "vitest"
-import type { IPlan, IPlanContent, Node } from "@/interfaces"
-import { NodeProp } from "@/enums"
-import { PlanService } from "@/services/plan-service"
-import _ from "lodash"
 import * as fs from "fs"
-import { fileURLToPath } from "url"
+import _ from "lodash"
 import * as path from "path"
+import { fileURLToPath } from "url"
+import { describe, expect, test } from "vitest"
+
+import { Property } from "@/enums"
+import type { IPlan, IPlanContent, Node } from "@/interfaces"
+import { PlanService } from "@/services/plan-service"
 
 const __filename = fileURLToPath(import.meta.url)
 const dir = path.join(path.dirname(__filename), "cte-exclusive-time")
@@ -14,9 +15,9 @@ let tests = files.map((file: string) => file.replace(/\..*/, ""))
 
 function sumExclusiveDuration(nodes: Node[]): number {
   return _.sumBy(nodes, (node) => {
-    const baseValue = node[NodeProp.EXCLUSIVE_DURATION]
-    const childrenSum = node[NodeProp.PLANS]
-      ? sumExclusiveDuration(node[NodeProp.PLANS])
+    const baseValue = node[Property.EXCLUSIVE_DURATION]
+    const childrenSum = node[Property.PLANS]
+      ? sumExclusiveDuration(node[Property.PLANS])
       : 0
     return baseValue + childrenSum
   })
@@ -34,8 +35,8 @@ tests.forEach((planTest: string) => {
 
       // Excpect the sum of exclusives to be approvimatively equal to the
       // duration of the root node
-      const min = (plan.content.Plan[NodeProp.ACTUAL_TOTAL_TIME] || 0) * 0.99
-      const max = (plan.content.Plan[NodeProp.ACTUAL_TOTAL_TIME] || 0) * 1.01
+      const min = (plan.content.Plan[Property.ACTUAL_TOTAL_TIME] || 0) * 0.99
+      const max = (plan.content.Plan[Property.ACTUAL_TOTAL_TIME] || 0) * 1.01
       expect(
         sumExclusiveDuration([plan.content.Plan].concat(plan.ctes)),
       ).toBeGreaterThan(min)

@@ -1,32 +1,33 @@
 <script lang="ts" setup>
 import { computed, inject, ref } from "vue"
-import type { ViewOptions } from "@/interfaces"
-import { EstimateDirection, NodeProp } from "@/enums"
-import { HighlightedNodeIdKey, ViewOptionsKey } from "@/symbols"
-import {
-  blocks,
-  blocksAsBytes,
-  cost,
-  duration,
-  factor,
-  keysToString,
-  sortKeys,
-  transferRate,
-} from "@/filters"
-import LevelDivider from "@/components/LevelDivider.vue"
+import { directive as vTippy, Tippy } from "vue-tippy"
+
+import DisabledBadge from "@/components/DisabledBadge.vue"
 import GridProgressBar from "@/components/GridProgressBar.vue"
-import WorkersDetail from "@/components/WorkersDetail.vue"
+import IoTable from "@/components/IoTable.vue"
+import LevelDivider from "@/components/LevelDivider.vue"
 import MiscDetail from "@/components/MiscDetail.vue"
 import SeverityBullet from "@/components/SeverityBullet.vue"
-import IoTooltip from "@/components/tooltip/IoTooltip.vue"
 import TimeTooltip from "@/components/tooltip/TimeTooltip.vue"
+import WorkersDetail from "@/components/WorkersDetail.vue"
+import { EstimateDirection, Property } from "@/enums"
+import {
+  formatBlocks,
+  formatBlocksAsBytes,
+  formatCost,
+  formatDuration,
+  formatFactor,
+  formatNumber,
+  formatTransferRate,
+  keysToString,
+  sortKeys,
+} from "@/filters"
+import type { ViewOptions } from "@/interfaces"
 import useNode from "@/node"
-import { Tippy, directive as vTippy } from "vue-tippy"
-import { HelpService } from "@/services/help-service"
-import { store } from "@/store"
+import { getNodeTypeDescription } from "@/services/help-service"
 import type { FlattenedPlanNode } from "@/store"
-const helpService = new HelpService()
-const getNodeTypeDescription = helpService.getNodeTypeDescription
+import { store } from "@/store"
+import { HighlightedNodeIdKey, ViewOptionsKey } from "@/symbols"
 
 interface Props {
   row: FlattenedPlanNode
@@ -107,17 +108,17 @@ const isHighlighted = computed(
       </template>
       <GridProgressBar
         :percentage="
-          (node[NodeProp.EXCLUSIVE_DURATION] /
+          (node[Property.EXCLUSIVE_DURATION] /
             (store.stats.executionTime ||
-              store.plan?.content.Plan[NodeProp.ACTUAL_TOTAL_TIME] ||
+              store.plan?.content.Plan[Property.ACTUAL_TOTAL_TIME] ||
               0)) *
           100
         "
         :percentage2="
-          (((node[NodeProp.ACTUAL_TOTAL_TIME] || 0) -
-            node[NodeProp.EXCLUSIVE_DURATION]) /
+          (((node[Property.ACTUAL_TOTAL_TIME] || 0) -
+            node[Property.EXCLUSIVE_DURATION]) /
             (store.stats.executionTime ||
-              store.plan?.content.Plan[NodeProp.ACTUAL_TOTAL_TIME] ||
+              store.plan?.content.Plan[Property.ACTUAL_TOTAL_TIME] ||
               0)) *
           100
         "
@@ -130,14 +131,14 @@ const isHighlighted = computed(
         ></SeverityBullet>
         <span class="flex-grow-1">
           {{
-            node[NodeProp.EXCLUSIVE_DURATION]?.toLocaleString(undefined, {
+            node[Property.EXCLUSIVE_DURATION]?.toLocaleString(undefined, {
               minimumFractionDigits: 3,
             }) || "-"
           }}
         </span>
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ duration(node[NodeProp.EXCLUSIVE_DURATION]) }}
+        {{ formatDuration(node[Property.EXCLUSIVE_DURATION]) }}
         <br />
         <template v-if="executionTimePercent !== Infinity">
           {{ executionTimePercent }}%
@@ -150,26 +151,30 @@ const isHighlighted = computed(
       v-if="columns.includes('ioread')"
     >
       <template #content>
-        <IoTooltip :node="node" class="mb-0" exclusive />
+        <IoTable :object="node" class="mb-0" exclusive />
       </template>
-      <template v-if="node[NodeProp.EXCLUSIVE_SUM_IO_READ_TIME]">
+      <template v-if="node[Property.EXCLUSIVE_SUM_IO_READ_TIME]">
         <GridProgressBar
           :percentage="
-            (node[NodeProp.EXCLUSIVE_SUM_IO_READ_TIME] /
-              ((store.plan?.content.Plan[NodeProp.SUM_IO_READ_TIME] ?? 0) +
-                (store.plan?.content.Plan[NodeProp.SUM_IO_WRITE_TIME] ?? 0))) *
+            (node[Property.EXCLUSIVE_SUM_IO_READ_TIME] /
+              ((store.plan?.content.Plan[Property.SUM_IO_READ_TIME] ?? 0) +
+                (store.plan?.content.Plan[Property.SUM_IO_WRITE_TIME] ?? 0))) *
             100
           "
         ></GridProgressBar>
         {{
-          node[NodeProp.EXCLUSIVE_SUM_IO_READ_TIME].toLocaleString(undefined, {
+          node[Property.EXCLUSIVE_SUM_IO_READ_TIME].toLocaleString(undefined, {
             minimumFractionDigits: 3,
           })
         }}
         <div v-if="showDetails" class="text-body-secondary mt-1">
-          {{ duration(node[NodeProp.EXCLUSIVE_SUM_IO_READ_TIME]) }}
+          {{ formatDuration(node[Property.EXCLUSIVE_SUM_IO_READ_TIME]) }}
           <br />
-          {{ transferRate(node[NodeProp.EXCLUSIVE_AVERAGE_SUM_IO_READ_SPEED]) }}
+          {{
+            formatTransferRate(
+              node[Property.EXCLUSIVE_AVERAGE_SUM_IO_READ_SPEED],
+            )
+          }}
         </div>
       </template>
     </Tippy>
@@ -179,27 +184,29 @@ const isHighlighted = computed(
       v-if="columns.includes('iowrite')"
     >
       <template #content>
-        <IoTooltip :node="node" class="mb-0" exclusive />
+        <IoTable :object="node" class="mb-0" exclusive />
       </template>
-      <template v-if="node[NodeProp.EXCLUSIVE_SUM_IO_WRITE_TIME]">
+      <template v-if="node[Property.EXCLUSIVE_SUM_IO_WRITE_TIME]">
         <GridProgressBar
           :percentage="
-            (node[NodeProp.EXCLUSIVE_SUM_IO_WRITE_TIME] /
-              ((store.plan?.content.Plan[NodeProp.SUM_IO_READ_TIME] ?? 0) +
-                (store.plan?.content.Plan[NodeProp.SUM_IO_WRITE_TIME] ?? 0))) *
+            (node[Property.EXCLUSIVE_SUM_IO_WRITE_TIME] /
+              ((store.plan?.content.Plan[Property.SUM_IO_READ_TIME] ?? 0) +
+                (store.plan?.content.Plan[Property.SUM_IO_WRITE_TIME] ?? 0))) *
             100
           "
         ></GridProgressBar>
         {{
-          node[NodeProp.EXCLUSIVE_SUM_IO_WRITE_TIME].toLocaleString(undefined, {
+          node[Property.EXCLUSIVE_SUM_IO_WRITE_TIME].toLocaleString(undefined, {
             minimumFractionDigits: 3,
           })
         }}
         <div v-if="showDetails" class="text-body-secondary mt-1">
-          {{ duration(node[NodeProp.EXCLUSIVE_SUM_IO_WRITE_TIME]) }}
+          {{ formatDuration(node[Property.EXCLUSIVE_SUM_IO_WRITE_TIME]) }}
           <br />
           {{
-            transferRate(node[NodeProp.EXCLUSIVE_AVERAGE_SUM_IO_WRITE_SPEED])
+            formatTransferRate(
+              node[Property.EXCLUSIVE_AVERAGE_SUM_IO_WRITE_SPEED],
+            )
           }}
         </div>
       </template>
@@ -210,7 +217,7 @@ const isHighlighted = computed(
     >
       <GridProgressBar
         :percentage="
-          (node[NodeProp.ACTUAL_ROWS_REVISED] / store.stats.maxRows) * 100
+          (node[Property.ACTUAL_ROWS_REVISED] / store.stats.maxRows) * 100
         "
       ></GridProgressBar>
       <!-- rows -->
@@ -218,7 +225,7 @@ const isHighlighted = computed(
         class="position-relative"
         v-tippy="{ content: rowsTooltip, allowHTML: true }"
       >
-        {{ tilde + node[NodeProp.ACTUAL_ROWS_REVISED]?.toLocaleString() }}
+        {{ tilde + formatNumber(node[Property.ACTUAL_ROWS_REVISED]) }}
       </div>
     </td>
     <td
@@ -228,12 +235,12 @@ const isHighlighted = computed(
       <GridProgressBar :percentage="estimateFactorPercent"></GridProgressBar>
       <!-- estimation -->
       <div
-        v-if="node[NodeProp.PLANNER_ESTIMATE_FACTOR] != undefined"
+        v-if="node[Property.PLANNER_ESTIMATE_FACTOR] != undefined"
         v-tippy="{ content: estimateFactorTooltip, allowHTML: true }"
       >
         <div
           class="position-relative d-flex"
-          v-if="node[NodeProp.PLANNER_ESTIMATE_FACTOR] != 1"
+          v-if="node[Property.PLANNER_ESTIMATE_FACTOR] != 1"
         >
           <SeverityBullet
             :severity="estimationClass"
@@ -241,11 +248,11 @@ const isHighlighted = computed(
           ></SeverityBullet>
           <span class="flex-grow-1">
             <span
-              v-html="factor(node[NodeProp.PLANNER_ESTIMATE_FACTOR] || 0)"
+              v-html="formatFactor(node[Property.PLANNER_ESTIMATE_FACTOR] || 0)"
             ></span>
             <span
               v-if="
-                node[NodeProp.PLANNER_ESTIMATE_DIRECTION] ===
+                node[Property.PLANNER_ESTIMATE_DIRECTION] ===
                 EstimateDirection.under
               "
             >
@@ -253,7 +260,7 @@ const isHighlighted = computed(
             </span>
             <span
               v-if="
-                node[NodeProp.PLANNER_ESTIMATE_DIRECTION] ===
+                node[Property.PLANNER_ESTIMATE_DIRECTION] ===
                 EstimateDirection.over
               "
             >
@@ -262,11 +269,11 @@ const isHighlighted = computed(
           </span>
         </div>
         <div
-          v-if="showDetails && node[NodeProp.PLANNER_ESTIMATE_FACTOR] != 1"
+          v-if="showDetails && node[Property.PLANNER_ESTIMATE_FACTOR] != 1"
           class="text-body-secondary mt-1"
         >
           Planned:<br />
-          {{ node[NodeProp.PLAN_ROWS_REVISED]?.toLocaleString() }}
+          {{ node[Property.PLAN_ROWS_REVISED]?.toLocaleString() }}
         </div>
       </div>
     </td>
@@ -277,7 +284,7 @@ const isHighlighted = computed(
       <GridProgressBar
         :percentage="
           Math.round(
-            (node[NodeProp.EXCLUSIVE_COST] / store.stats.maxCost) * 100,
+            (node[Property.EXCLUSIVE_COST] / store.stats.maxCost) * 100,
           )
         "
       ></GridProgressBar>
@@ -288,15 +295,13 @@ const isHighlighted = computed(
       >
         <SeverityBullet :severity="costClass" v-if="costClass"></SeverityBullet>
         <span class="flex-grow-1">
-          {{ cost(node[NodeProp.EXCLUSIVE_COST]) }}
+          {{ formatCost(node[Property.EXCLUSIVE_COST]) }}
         </span>
       </div>
     </td>
     <td class="text-end text-nowrap" v-if="columns.includes('loops')">
       <!-- loops -->
-      <span v-if="node[NodeProp.ACTUAL_LOOPS] != 1">
-        {{ node[NodeProp.ACTUAL_LOOPS].toLocaleString() }}
-      </span>
+      {{ formatNumber(node[Property.ACTUAL_LOOPS]) }}
     </td>
     <td
       class="text-end grid-progress-cell text-nowrap"
@@ -333,7 +338,7 @@ const isHighlighted = computed(
           v-if="heapFetchesClass"
         ></SeverityBullet>
         <span class="flex-grow-1">
-          {{ node[NodeProp.HEAP_FETCHES]?.toLocaleString() }}
+          {{ node[Property.HEAP_FETCHES]?.toLocaleString() }}
         </span>
       </div>
     </td>
@@ -345,7 +350,7 @@ const isHighlighted = computed(
     >
       <LevelDivider
         :row="row"
-        :isSubplan="!!node[NodeProp.SUBPLAN_NAME]"
+        :isSubplan="!!node[Property.SUBPLAN_NAME]"
       ></LevelDivider>
       <div class="d-inline">
         <b
@@ -361,58 +366,57 @@ const isHighlighted = computed(
         >
           {{ nodeName }}
         </b>
+        <DisabledBadge :node="node" />
 
         <span class="text-body-secondary">
           <template
-            v-if="node[NodeProp.RELATION_NAME] || node[NodeProp.FUNCTION_NAME]"
+            v-if="node[Property.RELATION_NAME] || node[Property.FUNCTION_NAME]"
           >
             <span class="text-body-tertiary">on</span>
-            <span v-if="node[NodeProp.SCHEMA]"
-              >{{ node[NodeProp.SCHEMA] }}.</span
-            >{{ node[NodeProp.RELATION_NAME]
-            }}{{ node[NodeProp.FUNCTION_NAME] }}
-            <span v-if="node[NodeProp.ALIAS]">
+            <span v-if="node[Property.SCHEMA]"
+              >{{ node[Property.SCHEMA] }}.</span
+            >{{ node[Property.RELATION_NAME]
+            }}{{ node[Property.FUNCTION_NAME] }}
+            <span v-if="node[Property.ALIAS]">
               <span class="text-body-tertiary">as</span>
-              {{ node[NodeProp.ALIAS] }}
+              {{ node[Property.ALIAS] }}
             </span>
           </template>
-          <template v-else-if="node[NodeProp.ALIAS]">
+          <template v-else-if="node[Property.ALIAS]">
             <span class="text-body-tertiary">on</span>
-            <span v-html="keysToString(node[NodeProp.ALIAS] as string)"></span>
+            <span v-html="keysToString(node[Property.ALIAS] as string)"></span>
           </template>
-          <template v-if="node[NodeProp.GROUP_KEY]">
+          <template v-if="node[Property.GROUP_KEY]">
             <span class="text-body-tertiary">by</span>
-            <span
-              v-html="keysToString(node[NodeProp.GROUP_KEY] as string)"
-            ></span>
+            <span v-html="keysToString(node[Property.GROUP_KEY])"></span>
           </template>
-          <template v-if="node[NodeProp.SORT_KEY]">
+          <template v-if="node[Property.SORT_KEY]">
             <span class="text-body-tertiary">by</span>
             <span
               v-html="
                 sortKeys(
-                  node[NodeProp.SORT_KEY] as string[],
-                  node[NodeProp.PRESORTED_KEY] as string[],
+                  node[Property.SORT_KEY] as string[],
+                  node[Property.PRESORTED_KEY] as string[],
                 )
               "
             ></span>
           </template>
-          <template v-if="node[NodeProp.INDEX_NAME]">
+          <template v-if="node[Property.INDEX_NAME]">
             <span class="text-body-tertiary">using</span>
             <span
-              v-html="keysToString(node[NodeProp.INDEX_NAME] as string)"
+              v-html="keysToString(node[Property.INDEX_NAME] as string)"
             ></span>
           </template>
-          <template v-if="node[NodeProp.HASH_CONDITION]">
+          <template v-if="node[Property.HASH_CONDITION]">
             <span class="text-body-tertiary">on</span>
             <span
-              v-html="keysToString(node[NodeProp.HASH_CONDITION] as string)"
+              v-html="keysToString(node[Property.HASH_CONDITION] as string)"
             ></span>
           </template>
-          <template v-if="node[NodeProp.CTE_NAME]">
+          <template v-if="node[Property.CTE_NAME]">
             <span class="text-reset">
               <span class="text-body-tertiary">CTE</span>
-              {{ node[NodeProp.CTE_NAME] }}
+              {{ node[Property.CTE_NAME] }}
             </span>
           </template>
         </span>
@@ -426,12 +430,12 @@ const isHighlighted = computed(
       >
         <div class="text-wrap">
           <div
-            v-if="getNodeTypeDescription(node[NodeProp.NODE_TYPE])"
+            v-if="getNodeTypeDescription(node[Property.NODE_TYPE])"
             class="node-description mt-1"
           >
-            <span class="node-type">{{ node[NodeProp.NODE_TYPE] }} Node</span>
+            <span class="node-type">{{ node[Property.NODE_TYPE] }} Node</span>
             <span
-              v-html="getNodeTypeDescription(node[NodeProp.NODE_TYPE])"
+              v-html="getNodeTypeDescription(node[Property.NODE_TYPE])"
             ></span>
           </div>
           <ul class="nav nav-tabs mt-1">
@@ -449,7 +453,7 @@ const isHighlighted = computed(
                 class="nav-link px-2 py-1"
                 :class="{
                   active: activeTab === 'output',
-                  disabled: !node[NodeProp.OUTPUT],
+                  disabled: !node[Property.OUTPUT],
                 }"
                 @click.prevent.stop="activeTab = 'output'"
                 href=""
@@ -462,8 +466,8 @@ const isHighlighted = computed(
                 :class="{
                   active: activeTab === 'workers',
                   disabled: !(
-                    node[NodeProp.WORKERS_PLANNED] ||
-                    node[NodeProp.WORKERS_PLANNED_BY_GATHER]
+                    node[Property.WORKERS_PLANNED] ||
+                    node[Property.WORKERS_PLANNED_BY_GATHER]
                   ),
                 }"
                 @click.prevent.stop="activeTab = 'workers'"
@@ -505,14 +509,14 @@ const isHighlighted = computed(
       <div
         class="position-relative"
         v-tippy="{
-          content: buffersByMetricTooltip(NodeProp.EXCLUSIVE_SHARED_HIT_BLOCKS),
+          content: buffersByMetricTooltip(Property.EXCLUSIVE_SHARED_HIT_BLOCKS),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_SHARED_HIT_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_SHARED_HIT_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_SHARED_HIT_BLOCKS]) }}
+        {{ formatBlocksAsBytes(node[Property.EXCLUSIVE_SHARED_HIT_BLOCKS]) }}
       </div>
     </td>
     <td
@@ -524,15 +528,15 @@ const isHighlighted = computed(
         class="position-relative"
         v-tippy="{
           content: buffersByMetricTooltip(
-            NodeProp.EXCLUSIVE_SHARED_READ_BLOCKS,
+            Property.EXCLUSIVE_SHARED_READ_BLOCKS,
           ),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_SHARED_READ_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_SHARED_READ_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_SHARED_READ_BLOCKS]) }}
+        {{ formatBlocksAsBytes(node[Property.EXCLUSIVE_SHARED_READ_BLOCKS]) }}
       </div>
     </td>
     <td
@@ -544,15 +548,17 @@ const isHighlighted = computed(
         class="position-relative"
         v-tippy="{
           content: buffersByMetricTooltip(
-            NodeProp.EXCLUSIVE_SHARED_DIRTIED_BLOCKS,
+            Property.EXCLUSIVE_SHARED_DIRTIED_BLOCKS,
           ),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_SHARED_DIRTIED_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_SHARED_DIRTIED_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_SHARED_DIRTIED_BLOCKS]) }}
+        {{
+          formatBlocksAsBytes(node[Property.EXCLUSIVE_SHARED_DIRTIED_BLOCKS])
+        }}
       </div>
     </td>
     <td
@@ -564,15 +570,17 @@ const isHighlighted = computed(
         class="position-relative"
         v-tippy="{
           content: buffersByMetricTooltip(
-            NodeProp.EXCLUSIVE_SHARED_WRITTEN_BLOCKS,
+            Property.EXCLUSIVE_SHARED_WRITTEN_BLOCKS,
           ),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_SHARED_WRITTEN_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_SHARED_WRITTEN_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_SHARED_WRITTEN_BLOCKS]) }}
+        {{
+          formatBlocksAsBytes(node[Property.EXCLUSIVE_SHARED_WRITTEN_BLOCKS])
+        }}
       </div>
     </td>
     <td
@@ -583,14 +591,14 @@ const isHighlighted = computed(
       <div
         class="position-relative"
         v-tippy="{
-          content: buffersByMetricTooltip(NodeProp.EXCLUSIVE_TEMP_READ_BLOCKS),
+          content: buffersByMetricTooltip(Property.EXCLUSIVE_TEMP_READ_BLOCKS),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_TEMP_READ_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_TEMP_READ_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_TEMP_READ_BLOCKS]) }}
+        {{ formatBlocksAsBytes(node[Property.EXCLUSIVE_TEMP_READ_BLOCKS]) }}
       </div>
     </td>
     <td
@@ -602,15 +610,15 @@ const isHighlighted = computed(
         class="position-relative"
         v-tippy="{
           content: buffersByMetricTooltip(
-            NodeProp.EXCLUSIVE_TEMP_WRITTEN_BLOCKS,
+            Property.EXCLUSIVE_TEMP_WRITTEN_BLOCKS,
           ),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_TEMP_WRITTEN_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_TEMP_WRITTEN_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_TEMP_WRITTEN_BLOCKS]) }}
+        {{ formatBlocksAsBytes(node[Property.EXCLUSIVE_TEMP_WRITTEN_BLOCKS]) }}
       </div>
     </td>
     <td
@@ -621,14 +629,14 @@ const isHighlighted = computed(
       <div
         class="position-relative"
         v-tippy="{
-          content: buffersByMetricTooltip(NodeProp.EXCLUSIVE_LOCAL_HIT_BLOCKS),
+          content: buffersByMetricTooltip(Property.EXCLUSIVE_LOCAL_HIT_BLOCKS),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_LOCAL_HIT_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_LOCAL_HIT_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_LOCAL_HIT_BLOCKS]) }}
+        {{ formatBlocksAsBytes(node[Property.EXCLUSIVE_LOCAL_HIT_BLOCKS]) }}
       </div>
     </td>
     <td
@@ -639,14 +647,14 @@ const isHighlighted = computed(
       <div
         class="position-relative"
         v-tippy="{
-          content: buffersByMetricTooltip(NodeProp.EXCLUSIVE_LOCAL_READ_BLOCKS),
+          content: buffersByMetricTooltip(Property.EXCLUSIVE_LOCAL_READ_BLOCKS),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_LOCAL_READ_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_LOCAL_READ_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_LOCAL_READ_BLOCKS]) }}
+        {{ formatBlocksAsBytes(node[Property.EXCLUSIVE_LOCAL_READ_BLOCKS]) }}
       </div>
     </td>
     <td
@@ -658,15 +666,15 @@ const isHighlighted = computed(
         class="position-relative"
         v-tippy="{
           content: buffersByMetricTooltip(
-            NodeProp.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS,
+            Property.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS,
           ),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS]) }}
+        {{ formatBlocksAsBytes(node[Property.EXCLUSIVE_LOCAL_DIRTIED_BLOCKS]) }}
       </div>
     </td>
     <td
@@ -678,15 +686,15 @@ const isHighlighted = computed(
         class="position-relative"
         v-tippy="{
           content: buffersByMetricTooltip(
-            NodeProp.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS,
+            Property.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS,
           ),
           allowHTML: true,
         }"
       >
-        {{ blocks(node[NodeProp.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS]) }}
+        {{ formatBlocks(node[Property.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS]) }}
       </div>
       <div v-if="showDetails" class="text-body-secondary mt-1">
-        {{ blocksAsBytes(node[NodeProp.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS]) }}
+        {{ formatBlocksAsBytes(node[Property.EXCLUSIVE_LOCAL_WRITTEN_BLOCKS]) }}
       </div>
     </td>
   </tr>

@@ -1,10 +1,9 @@
+import vue from "@vitejs/plugin-vue"
 import path from "path"
 import { fileURLToPath, URL } from "url"
-
 import { defineConfig } from "vite"
-import vue from "@vitejs/plugin-vue"
-import { viteSingleFile } from "vite-plugin-singlefile"
 import dts from "vite-plugin-dts"
+import { viteSingleFile } from "vite-plugin-singlefile"
 
 const build = process.env.LIB
   ? {
@@ -49,7 +48,7 @@ export default defineConfig({
         },
       },
     }),
-    process.env.LIB ? dts() : viteSingleFile()
+    process.env.LIB ? dts() : viteSingleFile(),
   ],
   resolve: {
     alias: {
@@ -57,7 +56,9 @@ export default defineConfig({
     },
   },
   define: {
-    __APP_VERSION__: JSON.stringify(process.env.npm_package_version),
+    __APP_VERSION__: JSON.stringify(
+      process.env.APP_VERSION ?? process.env.npm_package_version,
+    ),
     "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV),
   },
 })

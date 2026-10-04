@@ -17,7 +17,8 @@
     "Shared Dirtied Blocks": 0,
     "Plans": [
       {
-        "Node Type": "Hash Semi Join",
+        "Node Type": "Hash Join",
+        "Join Type": "Semi",
         "Startup Cost": 65.61,
         "Total Cost": 24418.81,
         "Plan Rows": 1042,
@@ -127,7 +128,7 @@
                 "Actual Total Time": 0.4,
                 "Actual Rows": 10,
                 "Actual Loops": 3,
-                "Buckets": 1024,
+                "Hash Buckets": 1024,
                 "Shared Hit Blocks": 33,
                 "Shared Read Blocks": 0,
                 "Shared Written Blocks": 0,
@@ -164,7 +165,7 @@
             "Actual Total Time": 0.933,
             "Actual Rows": 10,
             "Actual Loops": 3,
-            "Buckets": 1024,
+            "Hash Buckets": 1024,
             "Shared Hit Blocks": 14,
             "Shared Read Blocks": 0,
             "Shared Written Blocks": 0,

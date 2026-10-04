@@ -1,24 +1,19 @@
 <script lang="ts" setup>
 import _ from "lodash"
+import { Pane, Splitpanes } from "splitpanes"
 import {
   computed,
-  reactive,
-  ref,
   nextTick,
   onBeforeUnmount,
   onMounted,
   provide,
+  reactive,
+  ref,
   watch,
 } from "vue"
-import { Splitpanes, Pane } from "splitpanes"
+import { setDefaultProps } from "vue-tippy"
 
-import type { Node } from "@/interfaces"
-import {
-  HighlightedNodeIdKey,
-  SelectedNodeIdKey,
-  SelectNodeKey,
-  ViewOptionsKey,
-} from "@/symbols"
+import AnimatedEdge from "@/components/AnimatedEdge.vue"
 import Copy from "@/components/Copy.vue"
 import Diagram from "@/components/Diagram.vue"
 import Grid from "@/components/Grid.vue"
@@ -26,12 +21,17 @@ import LogoImage from "@/components/LogoImage.vue"
 import PlanNode from "@/components/PlanNode.vue"
 import PlanStats from "@/components/PlanStats.vue"
 import Stats from "@/components/Stats.vue"
-import AnimatedEdge from "@/components/AnimatedEdge.vue"
-import { findNodeById } from "@/services/help-service"
-import { HighlightType, NodeProp } from "@/enums"
+import { HighlightType, Property } from "@/enums"
 import { json_, pgsql_ } from "@/filters"
-import { setDefaultProps } from "vue-tippy"
-import { store } from "@/store.ts"
+import type { Node } from "@/interfaces"
+import { findNodeById } from "@/services/help-service"
+import { store } from "@/store"
+import {
+  HighlightedNodeIdKey,
+  SelectedNodeIdKey,
+  SelectNodeKey,
+  ViewOptionsKey,
+} from "@/symbols"
 
 setDefaultProps({
   theme: "bootstrap",
@@ -40,16 +40,18 @@ setDefaultProps({
 import "tippy.js/dist/tippy.css"
 import "tippy.js/dist/border.css"
 import "@/assets/css/tippy-bootstrap.css"
+
 import * as d3 from "d3"
 import {
-  flextree,
   type FlexHierarchyPointLink,
   type FlexHierarchyPointNode,
+  flextree,
 } from "d3-flextree"
 
 interface Props {
   planSource: string
   planQuery: string
+  planComment?: string
 }
 const props = defineProps<Props>()
 
@@ -107,7 +109,7 @@ const layout = flextree({
   ) => Math.pow(nodeA.path(nodeB).length, 1.5),
 })
 
-const tree = ref(layout.hierarchy({} as Node))
+const tree = ref<FlexHierarchyPointNode<Node>>()
 
 onMounted(() => {
   watch(() => [props.planSource, props.planQuery], parseAndShow, {
@@ -146,6 +148,10 @@ function parseAndShow() {
 }
 
 function doLayout() {
+  if (tree.value === undefined) {
+    return
+  }
+
   layoutRootNode.value = layout(tree.value)
 
   const mainLayoutExtent = getLayoutExtent(layoutRootNode.value)
@@ -167,11 +173,11 @@ function doLayout() {
   // compute links from node to CTE
   toCteLinks.value = []
   _.each(layoutRootNode.value.descendants(), (source) => {
-    if (_.has(source.data, NodeProp.CTE_NAME)) {
+    if (_.has(source.data, Property.CTE_NAME)) {
       const cte = _.find(ctes.value, (cteNode) => {
         return (
-          cteNode.data[NodeProp.SUBPLAN_NAME] ==
-          "CTE " + source.data[NodeProp.CTE_NAME]
+          cteNode.data[Property.SUBPLAN_NAME] ==
+          "CTE " + source.data[Property.CTE_NAME]
         )
       })
       if (cte) {
@@ -186,11 +192,11 @@ function doLayout() {
   // compute links from node in CTE to other CTE
   _.each(ctes.value, (cte) => {
     _.each(cte.descendants(), (sourceCte) => {
-      if (_.has(sourceCte.data, NodeProp.CTE_NAME)) {
+      if (_.has(sourceCte.data, Property.CTE_NAME)) {
         const targetCte = _.find(ctes.value, (cteNode) => {
           return (
-            cteNode.data[NodeProp.SUBPLAN_NAME] ==
-            "CTE " + sourceCte.data[NodeProp.CTE_NAME]
+            cteNode.data[Property.SUBPLAN_NAME] ==
+            "CTE " + sourceCte.data[Property.CTE_NAME]
           )
         })
         if (targetCte) {
@@ -256,7 +262,7 @@ function onSelectedNode(v: number) {
   }
 }
 
-function lineGen(link: FlexHierarchyPointLink<object>) {
+function lineGen(link: FlexHierarchyPointLink<Node>) {
   const source = link.source
   const target = link.target
   const k = Math.abs(target.y - (source.y + source.ySize) - padding)
@@ -373,11 +379,14 @@ function getLayoutExtent(
 }
 
 function isNeverExecuted(node: Node): boolean {
-  return !!store.stats.executionTime && !node[NodeProp.ACTUAL_LOOPS]
+  return !!store.stats.executionTime && !node[Property.ACTUAL_LOOPS]
 }
 
 watch(
   () => {
+    if (tree.value === undefined) {
+      return
+    }
     const data: [number, number][] = []
     data.concat(
       tree.value
@@ -485,6 +494,14 @@ function updateNodeSize(node: Node, size: [number, number]) {
             >Query</a
           >
         </li>
+        <li class="nav-item p-1" v-if="planComment">
+          <a
+            class="nav-link px-2 py-0"
+            :class="{ active: activeTab === 'comment' }"
+            href="#comment"
+            >Comment</a
+          >
+        </li>
         <li class="nav-item p-1">
           <a
             class="nav-link px-2 py-0"
@@ -571,7 +588,7 @@ function updateNodeSize(node: Node, size: [number, number]) {
                         "
                         :disabled="
                           !rootNode ||
-                          rootNode[NodeProp.ACTUAL_ROWS] === undefined
+                          rootNode[Property.ACTUAL_ROWS] === undefined
                         "
                       >
                         rows
@@ -600,7 +617,7 @@ function updateNodeSize(node: Node, size: [number, number]) {
                         stroke-color="#B3D7D7"
                         :stroke-width="
                           edgeWeight(
-                            link.target.data[NodeProp.ACTUAL_ROWS_REVISED],
+                            link.target.data[Property.ACTUAL_ROWS_REVISED],
                           )
                         "
                       />
@@ -614,7 +631,7 @@ function updateNodeSize(node: Node, size: [number, number]) {
                         stroke-color="grey"
                         :stroke-width="
                           edgeWeight(
-                            link.target.data[NodeProp.ACTUAL_ROWS_REVISED],
+                            link.target.data[Property.ACTUAL_ROWS_REVISED],
                           )
                         "
                       />
@@ -658,7 +675,7 @@ function updateNodeSize(node: Node, size: [number, number]) {
                           stroke-color="grey"
                           :stroke-width="
                             edgeWeight(
-                              link.target.data[NodeProp.ACTUAL_ROWS_REVISED],
+                              link.target.data[Property.ACTUAL_ROWS_REVISED],
                             )
                           "
                         />
@@ -725,6 +742,13 @@ function updateNodeSize(node: Node, size: [number, number]) {
       </div>
       <div
         class="tab-pane flex-grow-1 overflow-auto"
+        :class="{ 'show active': activeTab === 'comment' }"
+        v-if="planComment"
+      >
+        <div class="small p-2 text-break plan-comment">{{ planComment }}</div>
+      </div>
+      <div
+        class="tab-pane flex-grow-1 overflow-auto"
         :class="{ 'show active': activeTab === 'stats' }"
       >
         <Stats v-if="store.plan" />
@@ -734,19 +758,16 @@ function updateNodeSize(node: Node, size: [number, number]) {
 </template>
 
 <style lang="scss">
-@import "../assets/scss/variables";
-@import "../assets/scss/pev2";
-@import "splitpanes/dist/splitpanes.css";
-@import "highlight.js/scss/stackoverflow-light.scss";
-
-[data-bs-theme="dark"] {
-  @import "highlight.js/scss/stackoverflow-dark.scss";
-}
+@use "../assets/scss/pev2";
 
 .ready {
   rect,
   foreignObject {
     transition: all 0.2s ease-in-out;
   }
+}
+
+.plan-comment {
+  white-space: pre-wrap;
 }
 </style>

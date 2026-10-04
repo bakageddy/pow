@@ -1,9 +1,10 @@
 <script lang="ts" setup>
+import { faMoon, faSun } from "@fortawesome/free-solid-svg-icons"
+import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
 import { inject } from "vue"
+
 import VLink from "../components/VLink.vue"
 import { useTheme } from "../composables/useTheme"
-import { FontAwesomeIcon } from "@fortawesome/vue-fontawesome"
-import { faSun, faMoon } from "@fortawesome/free-solid-svg-icons"
 
 interface Props {
   title?: string
@@ -28,7 +29,9 @@ const { theme, toggleTheme } = useTheme()
         <button
           class="btn btn-link"
           @click="toggleTheme"
-          :title="theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'"
+          :title="
+            theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'
+          "
         >
           <FontAwesomeIcon :icon="theme === 'dark' ? faMoon : faSun" />
         </button>
