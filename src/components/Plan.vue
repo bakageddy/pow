@@ -107,7 +107,7 @@ const layout = flextree({
   ) => Math.pow(nodeA.path(nodeB).length, 1.5),
 })
 
-const tree = ref(layout.hierarchy({}))
+const tree = ref(layout.hierarchy({} as Node))
 
 onMounted(() => {
   watch(() => [props.planSource, props.planQuery], parseAndShow, {

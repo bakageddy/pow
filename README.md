@@ -1,6 +1,8 @@
 PEV2: A VueJS component to show a graphical vizualization of a PostgreSQL execution
 plan.
 
+**Pow desktop:** A Tauri + Solid.js PostgreSQL query optimization workspace using this repository's PEV2 plan parser. See [desktop/README.md](desktop/README.md) for setup, local Turso persistence, query history, forks, split views and GitHub builds.
+
 ![PEV2 screenshot](pev2_screenshot.png)
 
 # Usage

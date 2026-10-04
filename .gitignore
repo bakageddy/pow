@@ -8,6 +8,9 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+desktop/src-tauri/target/
+desktop/dist/
+desktop/src-tauri/gen/
 .DS_Store
 dist
 dist-ssr
