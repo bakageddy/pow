@@ -1,8 +1,12 @@
+// Tauri command handlers must accept owned String for IPC deserialization,
+// so clippy's needless_pass_by_value suggestion does not apply here.
+#![allow(clippy::needless_pass_by_value)]
+
 mod analysis;
-mod native_plan;
+mod parser;
 
 use analysis::{compare_plans, insights, Insight, PlanComparison};
-use native_plan::parse_plan;
+use parser::parse_plan;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, path::PathBuf, sync::Mutex, time::Duration};
 use tauri::{Manager, State};
@@ -57,7 +61,8 @@ struct QueryWindow {
     notes: Vec<QuickNote>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct ExplainOptions {
     verbose: bool,
@@ -176,7 +181,7 @@ async fn workspace(
             name: row.get(1).map_err(err)?,
             parent_id: row.get(2).map_err(err)?,
             host: row.get(3).map_err(err)?,
-            port: row.get::<i64>(4).map_err(err)? as u16,
+            port: u16::try_from(row.get::<i64>(4).map_err(err)?).unwrap_or(5432),
             username: row.get(5).map_err(err)?,
             database: row.get(6).map_err(err)?,
             windows: vec![],
@@ -273,6 +278,7 @@ fn open_workspace_database(state: State<'_, Mutex<Backend>>, path: String) -> Ap
                 .await
                 .map_err(err)?;
             let connection = database.connect().map_err(err)?;
+            drop(database);
             // Reject unrelated files instead of silently creating an empty workspace in them.
             let mut check = connection
                 .query("SELECT id FROM workflows LIMIT 1", ())
@@ -353,10 +359,7 @@ fn load_theme(state: State<'_, Mutex<Backend>>) -> AppResult<String> {
                 b.db.query("SELECT value FROM preferences WHERE key = 'theme'", ())
                     .await
                     .map_err(err)?;
-            match rows.next().await.map_err(err)? {
-                Some(row) => row.get(0).map_err(err),
-                None => Ok("nord".to_owned()),
-            }
+            rows.next().await.map_err(err)?.map_or_else(|| Ok("nord".to_owned()), |row| row.get(0).map_err(err))
         })
     })
 }
@@ -724,7 +727,7 @@ fn connect_workflow(
     })
 }
 
-fn explain_statement(query: &str, analyze: bool, options: &ExplainOptions) -> String {
+fn explain_statement(query: &str, analyze: bool, options: ExplainOptions) -> String {
     let mut flags = vec!["FORMAT JSON"];
     if analyze {
         flags.push("ANALYZE");
@@ -799,7 +802,7 @@ fn run_explain(
                     .await
                     .map_err(err)?;
                 // query_one uses the extended protocol, disallowing stacked statements.
-                let explain = explain_statement(query, analyze, &options);
+                let explain = explain_statement(query, analyze, options);
                 let row = client.query_one(&explain, &[]).await.map_err(err)?;
                 let value: serde_json::Value = row.try_get(0).map_err(err)?;
                 Ok::<String, String>(value.to_string())
@@ -932,14 +935,14 @@ mod tests {
             settings: true,
             ..ExplainOptions::default()
         };
-        let plain = explain_statement("SELECT 1", false, &opts);
+        let plain = explain_statement("SELECT 1", false, opts);
         assert!(plain.contains("VERBOSE"));
         assert!(plain.contains("SETTINGS"));
         assert!(plain.contains("COSTS OFF"));
         assert!(!plain.contains("WAL"));
         assert!(!plain.contains("BUFFERS"));
         assert!(!plain.contains("TIMING"));
-        let analyzed = explain_statement("SELECT 1", true, &opts);
+        let analyzed = explain_statement("SELECT 1", true, opts);
         assert!(analyzed.contains("ANALYZE"));
         assert!(analyzed.contains("BUFFERS"));
         assert!(analyzed.contains("WAL"));
@@ -1027,6 +1030,7 @@ mod tests {
     }
 }
 
+#[allow(clippy::missing_panics_doc)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
@@ -1041,6 +1045,7 @@ pub fn run() {
                         .await
                         .map_err(err)?;
                     let connection = db.connect().map_err(err)?;
+                    drop(db);
                     init_db(&connection).await?;
                     migrate_legacy_plans(&connection).await?;
                     Ok::<Connection, String>(connection)
